@@ -292,9 +292,27 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 
 	// Health check
 	r.GET("/api/health", func(c *gin.Context) {
+		dbStatus := "ok"
+		sqlDB, err := db.DB()
+		if err != nil || sqlDB.Ping() != nil {
+			dbStatus = "error"
+		}
+
+		redisStatus := "ok"
+		if svc.Cache == nil {
+			redisStatus = "not configured"
+		}
+
+		status := "ok"
+		if dbStatus != "ok" {
+			status = "degraded"
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"version": "0.1.0",
+			"status":  status,
+			"version": "1.0.0",
+			"db":      dbStatus,
+			"redis":   redisStatus,
 		})
 	})
 

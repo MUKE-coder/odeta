@@ -25,6 +25,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { href: "/dashboard", label: "Projects", icon: FolderOpen },
@@ -103,6 +104,11 @@ export function DashboardSidebar() {
           );
         })}
       </nav>
+
+      {/* Theme toggle */}
+      <div className={cn("px-3 py-2 border-t border-border/40 flex", collapsed ? "justify-center" : "justify-end")}>
+        <ThemeToggle />
+      </div>
 
       {/* Credits */}
       <div className={cn("px-3 py-3 border-t border-border/40", collapsed && "px-2")}>
