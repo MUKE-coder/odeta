@@ -23,6 +23,9 @@ import (
 	"odeta/apps/api/internal/jobs"
 	"odeta/apps/api/internal/services"
 	"odeta/apps/api/internal/services/credits"
+	githubsvc "odeta/apps/api/internal/services/github"
+	"odeta/apps/api/internal/services/grit"
+	orbitasvc "odeta/apps/api/internal/services/orbita"
 	"odeta/apps/api/internal/storage"
 )
 
@@ -207,6 +210,35 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	creditsHandler := &handlers.CreditsHandler{
 		Credits: creditsService,
 	}
+
+	// Odeta services
+	phaseExecutor := grit.NewPhaseExecutor(db)
+	var githubService *githubsvc.Service
+	if cfg.GithubAppID != "" {
+		githubService = githubsvc.New(cfg.GithubAppID, cfg.GithubAppPrivateKey)
+	}
+	var orbitaService *orbitasvc.Service
+	if cfg.OrbitaAPIKey != "" {
+		orbitaService = orbitasvc.New(cfg.OrbitaAPIKey)
+	}
+	_ = githubService // used in future phases
+
+	// Odeta handlers
+	odetaChatHandler := &handlers.OdetaChatHandler{
+		DB:      db,
+		AI:      svc.AI,
+		Credits: creditsService,
+	}
+	generateHandler := &handlers.GenerateHandler{
+		DB:       db,
+		Credits:  creditsService,
+		Executor: phaseExecutor,
+	}
+	deployHandler := &handlers.DeployHandler{
+		DB:      db,
+		Credits: creditsService,
+		Orbita:  orbitaService,
+	}
 	// grit:handlers
 
 	// Health check
@@ -311,6 +343,18 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		// Odeta credit routes
 		protected.GET("/me/credits", creditsHandler.GetBalance)
 		protected.POST("/me/credits/check", creditsHandler.CheckCredits)
+
+		// Odeta AI chat (with credits + conversation persistence)
+		protected.POST("/chat", odetaChatHandler.Chat)
+
+		// Odeta project generation
+		protected.POST("/generate", generateHandler.Generate)
+		protected.GET("/projects/:id/progress", generateHandler.StreamProgress)
+
+		// Odeta deployment
+		protected.POST("/deploy", deployHandler.Deploy)
+		protected.GET("/projects/:id/deployments", deployHandler.ListDeployments)
+		protected.GET("/subdomains/check", deployHandler.CheckSubdomain)
 
 		// grit:routes:protected
 	}
