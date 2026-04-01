@@ -23,9 +23,12 @@ import (
 	"odeta/apps/api/internal/jobs"
 	"odeta/apps/api/internal/services"
 	"odeta/apps/api/internal/services/credits"
+	"odeta/apps/api/internal/services/dgateway"
 	githubsvc "odeta/apps/api/internal/services/github"
 	"odeta/apps/api/internal/services/grit"
 	orbitasvc "odeta/apps/api/internal/services/orbita"
+	stripesvc "odeta/apps/api/internal/services/stripe"
+	"odeta/apps/api/internal/handlers/webhooks"
 	"odeta/apps/api/internal/storage"
 )
 
@@ -72,6 +75,8 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 				ByRoute: map[string]sentinel.Limit{
 					"/api/auth/login":    {Requests: 5, Window: 15 * time.Minute},
 					"/api/auth/register": {Requests: 3, Window: 15 * time.Minute},
+					"/api/chat":          {Requests: 20, Window: 1 * time.Minute},
+					"/api/generate":      {Requests: 5, Window: 1 * time.Minute},
 				},
 			},
 			AuthShield: sentinel.AuthShieldConfig{
@@ -223,6 +228,46 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	}
 	_ = githubService // used in future phases
 
+	// Stripe service
+	var stripeService *stripesvc.Service
+	if cfg.StripeSecretKey != "" {
+		stripeService = stripesvc.New(cfg.StripeSecretKey, cfg.FrontendURL)
+		log.Println("Stripe billing configured")
+	}
+
+	// DGateway service
+	var dgatewayService *dgateway.Service
+	if cfg.DGatewayAPIKey != "" {
+		dgatewayService = dgateway.New(cfg.DGatewayAPIKey)
+		log.Println("DGateway billing configured")
+	}
+	_ = dgatewayService // used for DGateway payment endpoints
+
+	// Billing handler
+	billingHandler := &handlers.BillingHandler{
+		DB:     db,
+		Stripe: stripeService,
+	}
+
+	// Webhook handlers
+	stripeWebhook := &webhooks.StripeWebhook{
+		DB:            db,
+		Credits:       creditsService,
+		WebhookSecret: cfg.StripeWebhookSecret,
+	}
+	dgatewayWebhook := &webhooks.DGatewayWebhook{
+		DB:            db,
+		Credits:       creditsService,
+		WebhookSecret: cfg.DGatewayWebhookSecret,
+	}
+	githubWebhook := &webhooks.GitHubWebhook{
+		DB:            db,
+		WebhookSecret: cfg.GithubClientSecret, // reuse OAuth secret for webhook verification
+	}
+	orbitaWebhook := &webhooks.OrbitaWebhook{
+		DB: db,
+	}
+
 	// Odeta handlers
 	odetaChatHandler := &handlers.OdetaChatHandler{
 		DB:      db,
@@ -340,6 +385,11 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		protected.GET("/subscriptions/:id", subscriptionHandler.GetByID)
 		protected.POST("/subscriptions", subscriptionHandler.Create)
 		protected.PUT("/subscriptions/:id", subscriptionHandler.Update)
+		// Odeta billing routes
+		protected.POST("/billing/checkout", billingHandler.CreateCheckout)
+		protected.POST("/billing/portal", billingHandler.CreatePortal)
+		protected.GET("/billing/subscription", billingHandler.GetSubscription)
+
 		// Odeta credit routes
 		protected.GET("/me/credits", creditsHandler.GetBalance)
 		protected.POST("/me/credits/check", creditsHandler.CheckCredits)
@@ -402,6 +452,15 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		admin.DELETE("/deployments/:id", deploymentHandler.Delete)
 		admin.DELETE("/subscriptions/:id", subscriptionHandler.Delete)
 		// grit:routes:admin
+	}
+
+	// Webhook routes (public — signature-verified internally)
+	webhookGroup := r.Group("/webhooks")
+	{
+		webhookGroup.POST("/stripe", stripeWebhook.Handle)
+		webhookGroup.POST("/dgateway", dgatewayWebhook.Handle)
+		webhookGroup.POST("/github", githubWebhook.Handle)
+		webhookGroup.POST("/orbita", orbitaWebhook.Handle)
 	}
 
 	// Custom role-restricted routes

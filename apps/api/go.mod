@@ -29,6 +29,7 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/google/go-github/v60 v60.0.0
 	github.com/stretchr/testify v1.11.1
+	github.com/stripe/stripe-go/v76 v76.25.0
 	golang.org/x/oauth2 v0.17.0
 )
 
