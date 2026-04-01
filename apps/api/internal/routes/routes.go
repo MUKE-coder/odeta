@@ -279,6 +279,10 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		Credits:  creditsService,
 		Executor: phaseExecutor,
 	}
+	adminOdetaHandler := &handlers.AdminHandler{
+		DB:      db,
+		Credits: creditsService,
+	}
 	deployHandler := &handlers.DeployHandler{
 		DB:      db,
 		Credits: creditsService,
@@ -451,6 +455,12 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		admin.DELETE("/credit_logs/:id", creditLogHandler.Delete)
 		admin.DELETE("/deployments/:id", deploymentHandler.Delete)
 		admin.DELETE("/subscriptions/:id", subscriptionHandler.Delete)
+		// Odeta admin routes
+		admin.GET("/admin/stats", adminOdetaHandler.GetStats)
+		admin.POST("/admin/users/:id/credits", adminOdetaHandler.AdjustCredits)
+		admin.PUT("/admin/users/:id/plan", adminOdetaHandler.ChangePlan)
+		admin.POST("/admin/users/:id/suspend", adminOdetaHandler.SuspendUser)
+
 		// grit:routes:admin
 	}
 
