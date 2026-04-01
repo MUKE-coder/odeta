@@ -71,6 +71,29 @@ type Config struct {
 	GithubClientID     string
 	GithubClientSecret string
 	OAuthFrontendURL   string // Where to redirect after OAuth callback
+
+	// Odeta-specific
+	FrontendURL string // Frontend app URL
+
+	// Stripe
+	StripeSecretKey      string
+	StripePublishableKey string
+	StripeWebhookSecret  string
+
+	// DGateway
+	DGatewayAPIKey        string
+	DGatewayWebhookSecret string
+
+	// GitHub App (for repo automation)
+	GithubAppID         string
+	GithubAppPrivateKey string
+
+	// Orbita (deployment)
+	OrbitaAPIKey string
+
+	// External APIs
+	UnsplashAccessKey string
+	GeminiAPIKey      string
 }
 
 // Load reads configuration from environment variables.
@@ -122,6 +145,23 @@ func Load() (*Config, error) {
 		GithubClientID:     getEnv("GITHUB_CLIENT_ID", ""),
 		GithubClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
 		OAuthFrontendURL:   getEnv("OAUTH_FRONTEND_URL", "http://localhost:3001"),
+
+		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
+
+		StripeSecretKey:      getEnv("STRIPE_SECRET_KEY", ""),
+		StripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY", ""),
+		StripeWebhookSecret:  getEnv("STRIPE_WEBHOOK_SECRET", ""),
+
+		DGatewayAPIKey:        getEnv("DGATEWAY_API_KEY", ""),
+		DGatewayWebhookSecret: getEnv("DGATEWAY_WEBHOOK_SECRET", ""),
+
+		GithubAppID:         getEnv("GITHUB_APP_ID", ""),
+		GithubAppPrivateKey: getEnv("GITHUB_APP_PRIVATE_KEY", ""),
+
+		OrbitaAPIKey: getEnv("ORBITA_API_KEY", ""),
+
+		UnsplashAccessKey: getEnv("UNSPLASH_ACCESS_KEY", ""),
+		GeminiAPIKey:      getEnv("GEMINI_API_KEY", ""),
 	}
 
 	if cfg.DatabaseURL == "" {

@@ -12,6 +12,7 @@ const (
 	TypeEmailSend     = "email:send"
 	TypeImageProcess  = "image:process"
 	TypeTokensCleanup = "tokens:cleanup"
+	TypeCreditsReset  = "credits:reset"
 )
 
 // Client wraps asynq.Client for enqueuing background jobs.

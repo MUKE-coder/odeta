@@ -2,10 +2,12 @@ package mail
 
 // EmailTemplates contains all available email templates.
 var EmailTemplates = map[string]string{
-	"welcome":            welcomeTemplate,
-	"password-reset":     passwordResetTemplate,
-	"email-verification": emailVerificationTemplate,
-	"notification":       notificationTemplate,
+	"welcome":                welcomeTemplate,
+	"password-reset":         passwordResetTemplate,
+	"email-verification":     emailVerificationTemplate,
+	"notification":           notificationTemplate,
+	"low-credits":            lowCreditsTemplate,
+	"subscription-confirmed": subscriptionConfirmedTemplate,
 }
 
 const baseLayout = `<!DOCTYPE html>
@@ -168,6 +170,76 @@ const notificationTemplate = `<!DOCTYPE html>
         <a href="{{.ActionURL}}" class="btn">{{.ActionText}}</a>
       </p>
       {{end}}
+    </div>
+    <div class="footer">
+      <p>&copy; {{.Year}} {{.AppName}}. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+
+const lowCreditsTemplate = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 0; background-color: #0a0a0f; color: #e8e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+    .card { background-color: #111118; border: 1px solid #2a2a3a; border-radius: 12px; padding: 32px; }
+    .logo { text-align: center; margin-bottom: 24px; font-size: 24px; font-weight: 700; color: #6c5ce7; }
+    h1 { font-size: 20px; margin: 0 0 16px; color: #e8e8f0; }
+    p { font-size: 14px; line-height: 1.6; color: #9090a8; margin: 0 0 16px; }
+    .btn { display: inline-block; background-color: #6c5ce7; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+    .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #606078; }
+    .warning { background-color: #1a1a24; border: 1px solid #f0ad4e; border-radius: 8px; padding: 16px; text-align: center; font-size: 18px; font-weight: 700; color: #f0ad4e; margin: 16px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="logo">{{.AppName}}</div>
+      <h1>Your Credits Are Running Low</h1>
+      <div class="warning">{{.Credits}} credits remaining</div>
+      <p>Hi {{.Name}}, you have fewer than 10 credits left on your {{.Plan}} plan. Once you run out, you won't be able to use AI chat or generate projects until your credits reset or you upgrade.</p>
+      <p style="text-align: center; margin-top: 24px;">
+        <a href="{{.UpgradeURL}}" class="btn">Upgrade Plan</a>
+      </p>
+    </div>
+    <div class="footer">
+      <p>&copy; {{.Year}} {{.AppName}}. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`
+
+const subscriptionConfirmedTemplate = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 0; background-color: #0a0a0f; color: #e8e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+    .card { background-color: #111118; border: 1px solid #2a2a3a; border-radius: 12px; padding: 32px; }
+    .logo { text-align: center; margin-bottom: 24px; font-size: 24px; font-weight: 700; color: #6c5ce7; }
+    h1 { font-size: 20px; margin: 0 0 16px; color: #e8e8f0; }
+    p { font-size: 14px; line-height: 1.6; color: #9090a8; margin: 0 0 16px; }
+    .btn { display: inline-block; background-color: #6c5ce7; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+    .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #606078; }
+    .success { background-color: #1a1a24; border: 1px solid #27ae60; border-radius: 8px; padding: 16px; text-align: center; font-size: 18px; font-weight: 700; color: #27ae60; margin: 16px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="logo">{{.AppName}}</div>
+      <h1>Subscription Confirmed!</h1>
+      <div class="success">{{.Plan}} Plan — {{.Credits}} credits/month</div>
+      <p>Hi {{.Name}}, your {{.Plan}} subscription is now active. You have {{.Credits}} credits to use this month.</p>
+      <p style="text-align: center; margin-top: 24px;">
+        <a href="{{.DashboardURL}}" class="btn">Start Building</a>
+      </p>
     </div>
     <div class="footer">
       <p>&copy; {{.Year}} {{.AppName}}. All rights reserved.</p>

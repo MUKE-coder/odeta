@@ -16,6 +16,7 @@ import (
 	"odeta/apps/api/internal/config"
 	"odeta/apps/api/internal/models"
 	"odeta/apps/api/internal/services"
+	"odeta/apps/api/internal/services/credits"
 	"odeta/apps/api/internal/totp"
 )
 
@@ -24,6 +25,7 @@ type AuthHandler struct {
 	DB          *gorm.DB
 	AuthService *services.AuthService
 	Config      *config.Config
+	Credits     *credits.Service
 }
 
 type registerRequest struct {
@@ -96,6 +98,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			},
 		})
 		return
+	}
+
+	// Initialize credits for new user
+	if h.Credits != nil {
+		if err := h.Credits.Initialize(user.ID, models.PlanFree); err != nil {
+			log.Printf("Warning: failed to initialize credits for user %d: %v", user.ID, err)
+		}
+		// Reload user to get updated credits
+		h.DB.First(&user, user.ID)
 	}
 
 	tokens, err := h.AuthService.GenerateTokenPair(user.ID, user.Email, user.Role)
@@ -439,6 +450,13 @@ func (h *AuthHandler) OAuthCallback(c *gin.Context) {
 				redirectURL := fmt.Sprintf("%s/login?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Failed to create account."))
 				c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 				return
+			}
+
+			// Initialize credits for new OAuth user
+			if h.Credits != nil {
+				if err := h.Credits.Initialize(user.ID, models.PlanFree); err != nil {
+					log.Printf("Warning: failed to initialize credits for OAuth user %d: %v", user.ID, err)
+				}
 			}
 		} else {
 			log.Printf("OAuth: database error: %v", result.Error)

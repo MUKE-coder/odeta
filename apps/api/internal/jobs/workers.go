@@ -14,6 +14,7 @@ import (
 	"odeta/apps/api/internal/cache"
 	"odeta/apps/api/internal/mail"
 	"odeta/apps/api/internal/models"
+	"odeta/apps/api/internal/services/credits"
 	"odeta/apps/api/internal/storage"
 )
 
@@ -46,6 +47,7 @@ func StartWorker(redisURL string, deps WorkerDeps) (func(), error) {
 	mux.HandleFunc(TypeEmailSend, handleEmailSend(deps))
 	mux.HandleFunc(TypeImageProcess, handleImageProcess(deps))
 	mux.HandleFunc(TypeTokensCleanup, handleTokensCleanup(deps))
+	mux.HandleFunc(TypeCreditsReset, handleCreditsReset(deps))
 
 	go func() {
 		if err := srv.Run(mux); err != nil {
@@ -119,6 +121,25 @@ func handleImageProcess(deps WorkerDeps) func(ctx context.Context, task *asynq.T
 		}
 
 		log.Printf("Thumbnail created for upload %d", payload.UploadID)
+		return nil
+	}
+}
+
+func handleCreditsReset(deps WorkerDeps) func(ctx context.Context, task *asynq.Task) error {
+	return func(ctx context.Context, task *asynq.Task) error {
+		if deps.DB == nil {
+			return fmt.Errorf("database not configured")
+		}
+
+		log.Println("Running monthly credit reset...")
+
+		creditsSvc := credits.New(deps.DB)
+		resetCount, err := creditsSvc.ResetAllDue()
+		if err != nil {
+			return fmt.Errorf("credit reset failed: %w", err)
+		}
+
+		log.Printf("Credit reset complete — %d user(s) reset", resetCount)
 		return nil
 	}
 }

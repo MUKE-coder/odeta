@@ -45,6 +45,17 @@ func New(redisURL string) (*Scheduler, error) {
 		Type:     "tokens:cleanup",
 	})
 
+	// Credit reset — daily at midnight UTC
+	_, err = scheduler.Register("0 0 * * *", asynq.NewTask("credits:reset", nil))
+	if err != nil {
+		return nil, fmt.Errorf("registering credits reset: %w", err)
+	}
+	RegisteredTasks = append(RegisteredTasks, Task{
+		Name:     "Monthly credit reset",
+		Schedule: "0 0 * * *",
+		Type:     "credits:reset",
+	})
+
 	// grit:cron-tasks
 
 	return &Scheduler{scheduler: scheduler}, nil

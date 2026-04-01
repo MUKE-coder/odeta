@@ -54,7 +54,7 @@ type User struct {
 	Credits          int       `gorm:"default:100" json:"credits"`
 	CreditsResetAt   time.Time `json:"credits_reset_at"`
 	Plan             string    `gorm:"size:20;default:'free'" json:"plan"`
-	StripeCustomerID string    `gorm:"size:255;uniqueIndex" json:"stripe_customer_id"`
+	StripeCustomerID *string   `gorm:"size:255;uniqueIndex" json:"stripe_customer_id"`
 	GithubToken      string    `gorm:"size:500" json:"-"`
 
 	// Associations

@@ -22,6 +22,7 @@ import (
 	"odeta/apps/api/internal/models"
 	"odeta/apps/api/internal/jobs"
 	"odeta/apps/api/internal/services"
+	"odeta/apps/api/internal/services/credits"
 	"odeta/apps/api/internal/storage"
 )
 
@@ -153,11 +154,15 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		RefreshExpiry: cfg.JWTRefreshExpiry,
 	}
 
+	// Credits service (used by auth + credits handler)
+	creditsService := credits.New(db)
+
 	// Handlers
 	authHandler := &handlers.AuthHandler{
 		DB:          db,
 		AuthService: authService,
 		Config:      cfg,
+		Credits:     creditsService,
 	}
 	userHandler := &handlers.UserHandler{
 		DB: db,
@@ -198,6 +203,9 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	}
 	subscriptionHandler := &handlers.SubscriptionHandler{
 		DB: db,
+	}
+	creditsHandler := &handlers.CreditsHandler{
+		Credits: creditsService,
 	}
 	// grit:handlers
 
@@ -300,6 +308,10 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		protected.GET("/subscriptions/:id", subscriptionHandler.GetByID)
 		protected.POST("/subscriptions", subscriptionHandler.Create)
 		protected.PUT("/subscriptions/:id", subscriptionHandler.Update)
+		// Odeta credit routes
+		protected.GET("/me/credits", creditsHandler.GetBalance)
+		protected.POST("/me/credits/check", creditsHandler.CheckCredits)
+
 		// grit:routes:protected
 	}
 
