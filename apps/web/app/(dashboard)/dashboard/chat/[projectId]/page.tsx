@@ -15,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ArrowLeft, Coins, FileCode, Layers, Monitor } from "lucide-react";
+import { ArrowLeft, Coins, FileCode, Layers, Monitor, Rocket } from "lucide-react";
+import { DeployPanel } from "@/components/chat/deploy-panel";
 import Link from "next/link";
 
 interface Project {
@@ -25,6 +26,7 @@ interface Project {
   type: string;
   status: string;
   subdomain?: string;
+  github_repo_url?: string;
 }
 
 export default function ChatPage() {
@@ -198,6 +200,10 @@ export default function ChatPage() {
               <FileCode className="h-3.5 w-3.5" />
               Code
             </TabsTrigger>
+            <TabsTrigger value="deploy" className="text-xs gap-1.5">
+              <Rocket className="h-3.5 w-3.5" />
+              Deploy
+            </TabsTrigger>
             <TabsTrigger value="preview" className="text-xs gap-1.5">
               <Monitor className="h-3.5 w-3.5" />
               Preview
@@ -212,6 +218,15 @@ export default function ChatPage() {
             <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
               Code output will appear here during generation
             </div>
+          </TabsContent>
+
+          <TabsContent value="deploy" className="flex-1 overflow-y-auto m-0">
+            <DeployPanel
+              projectId={projectId}
+              projectSlug={project.slug}
+              projectStatus={project.status}
+              githubRepoUrl={project.github_repo_url}
+            />
           </TabsContent>
 
           <TabsContent value="preview" className="flex-1 overflow-y-auto m-0 p-4">
