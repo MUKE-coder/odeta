@@ -28,6 +28,10 @@ func Seed(db *gorm.DB) error {
 	models.SeedUIComponents(db)
 	models.SeedUIComponentsExtended(db)
 
+	if err := seedSampleProjects(db); err != nil {
+		return fmt.Errorf("seeding sample projects: %w", err)
+	}
+
 	// grit:seeders
 
 	return nil
@@ -42,13 +46,18 @@ func seedAdminUser(db *gorm.DB) error {
 		return nil
 	}
 
+	now := time.Now()
+	resetAt := now.Add(30 * 24 * time.Hour)
 	admin := models.User{
-		FirstName: "Admin",
-		LastName:  "User",
-		Email:     "admin@example.com",
-		Password:  "password",
-		Role:      "ADMIN",
-		Active:    true,
+		FirstName:      "Admin",
+		LastName:       "User",
+		Email:          "admin@example.com",
+		Password:       "password",
+		Role:           "ADMIN",
+		Active:         true,
+		Credits:        999999,
+		CreditsResetAt: resetAt,
+		Plan:           models.PlanPro,
 	}
 
 	if err := db.Create(&admin).Error; err != nil {
@@ -161,6 +170,76 @@ func seedBlogs(db *gorm.DB) error {
 		}
 		log.Printf("Created blog: %q (%s)", b.Title, status)
 	}
+
+	return nil
+}
+
+// seedSampleProjects creates sample projects for the admin user.
+func seedSampleProjects(db *gorm.DB) error {
+	var count int64
+	db.Model(&models.Project{}).Count(&count)
+	if count > 0 {
+		log.Println("Projects already seeded, skipping...")
+		return nil
+	}
+
+	// Find admin user
+	var admin models.User
+	if err := db.Where("email = ?", "admin@example.com").First(&admin).Error; err != nil {
+		log.Println("Admin user not found, skipping project seeding")
+		return nil
+	}
+
+	projects := []models.Project{
+		{
+			Name:        "Invoice Pro",
+			Slug:        "invoice-pro",
+			Type:        models.ProjectTypeWebApp,
+			Status:      models.ProjectStatusDeployed,
+			Description: "A SaaS invoicing tool for freelancers with Stripe payments and PDF export.",
+			UserId:      admin.ID,
+		},
+		{
+			Name:        "Portfolio Site",
+			Slug:        "portfolio-site",
+			Type:        models.ProjectTypeWebsite,
+			Status:      models.ProjectStatusDraft,
+			Description: "A minimalist developer portfolio with blog and project showcase.",
+			UserId:      admin.ID,
+		},
+	}
+
+	for i := range projects {
+		if err := db.Create(&projects[i]).Error; err != nil {
+			log.Printf("Warning: failed to create project %q: %v", projects[i].Name, err)
+			continue
+		}
+		log.Printf("Created project: %q (%s)", projects[i].Name, projects[i].Type)
+	}
+
+	// Add sample conversations to the first project
+	conversations := []models.Conversation{
+		{
+			ProjectId: projects[0].ID,
+			Role:      models.ConversationRoleUser,
+			Content:   "I want to build a SaaS invoicing tool for freelancers. It should let them create invoices, send them to clients, and get paid via Stripe.",
+			Phase:     models.ConversationPhaseDiscovery,
+		},
+		{
+			ProjectId:   projects[0].ID,
+			Role:        models.ConversationRoleAssistant,
+			Content:     "Great idea! Let me ask a few questions to understand your needs better.\n\n1. Should clients be able to create accounts, or is it freelancer-only?\n2. Do you need recurring invoices?\n3. Any specific currencies beyond USD?",
+			Phase:       models.ConversationPhaseDiscovery,
+			CreditsUsed: 1,
+		},
+	}
+
+	for _, c := range conversations {
+		if err := db.Create(&c).Error; err != nil {
+			log.Printf("Warning: failed to create conversation: %v", err)
+		}
+	}
+	log.Println("Created sample conversations")
 
 	return nil
 }

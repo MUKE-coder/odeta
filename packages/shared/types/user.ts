@@ -12,6 +12,11 @@ export interface User {
   email_verified_at: string | null;
   ip_address: string;
   mac_address: string;
+  // Odeta-specific
+  credits: number;
+  credits_reset_at: string;
+  plan: "free" | "starter" | "pro";
+  stripe_customer_id: string;
   created_at: string;
   updated_at: string;
 }

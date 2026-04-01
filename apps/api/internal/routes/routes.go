@@ -94,7 +94,7 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 				cfg.GORMStudioUsername: cfg.GORMStudioPassword,
 			})
 		}
-		studio.Mount(r, db, []interface{}{&models.User{}, &models.Upload{}, &models.Blog{}, /* grit:studio */}, studioCfg)
+		studio.Mount(r, db, []interface{}{&models.User{}, &models.Upload{}, &models.Blog{}, &models.Project{}, &models.Conversation{}, &models.ProjectPhase{}, &models.CreditLog{}, &models.Deployment{}, &models.Subscription{}, /* grit:studio */}, studioCfg)
 		log.Println("GORM Studio mounted at /studio")
 	}
 
@@ -181,6 +181,24 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		AuthService: authService,
 		Issuer:      cfg.TOTPIssuer,
 	}
+	projectHandler := &handlers.ProjectHandler{
+		DB: db,
+	}
+	conversationHandler := &handlers.ConversationHandler{
+		DB: db,
+	}
+	projectPhaseHandler := &handlers.ProjectPhaseHandler{
+		DB: db,
+	}
+	creditLogHandler := &handlers.CreditLogHandler{
+		DB: db,
+	}
+	deploymentHandler := &handlers.DeploymentHandler{
+		DB: db,
+	}
+	subscriptionHandler := &handlers.SubscriptionHandler{
+		DB: db,
+	}
 	// grit:handlers
 
 	// Health check
@@ -258,6 +276,30 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		protected.GET("/ui-components", uiRegistryHandler.ListComponents)
 		protected.GET("/ui-components/:name", uiRegistryHandler.GetComponentDetail)
 
+		protected.GET("/projects", projectHandler.List)
+		protected.GET("/projects/:id", projectHandler.GetByID)
+		protected.POST("/projects", projectHandler.Create)
+		protected.PUT("/projects/:id", projectHandler.Update)
+		protected.GET("/conversations", conversationHandler.List)
+		protected.GET("/conversations/:id", conversationHandler.GetByID)
+		protected.POST("/conversations", conversationHandler.Create)
+		protected.PUT("/conversations/:id", conversationHandler.Update)
+		protected.GET("/project_phases", projectPhaseHandler.List)
+		protected.GET("/project_phases/:id", projectPhaseHandler.GetByID)
+		protected.POST("/project_phases", projectPhaseHandler.Create)
+		protected.PUT("/project_phases/:id", projectPhaseHandler.Update)
+		protected.GET("/credit_logs", creditLogHandler.List)
+		protected.GET("/credit_logs/:id", creditLogHandler.GetByID)
+		protected.POST("/credit_logs", creditLogHandler.Create)
+		protected.PUT("/credit_logs/:id", creditLogHandler.Update)
+		protected.GET("/deployments", deploymentHandler.List)
+		protected.GET("/deployments/:id", deploymentHandler.GetByID)
+		protected.POST("/deployments", deploymentHandler.Create)
+		protected.PUT("/deployments/:id", deploymentHandler.Update)
+		protected.GET("/subscriptions", subscriptionHandler.List)
+		protected.GET("/subscriptions/:id", subscriptionHandler.GetByID)
+		protected.POST("/subscriptions", subscriptionHandler.Create)
+		protected.PUT("/subscriptions/:id", subscriptionHandler.Update)
 		// grit:routes:protected
 	}
 
@@ -297,6 +339,12 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		admin.PUT("/admin/ui-components/:name", uiRegistryHandler.UpdateComponent)
 		admin.DELETE("/admin/ui-components/:name", uiRegistryHandler.DeleteComponent)
 
+		admin.DELETE("/projects/:id", projectHandler.Delete)
+		admin.DELETE("/conversations/:id", conversationHandler.Delete)
+		admin.DELETE("/project_phases/:id", projectPhaseHandler.Delete)
+		admin.DELETE("/credit_logs/:id", creditLogHandler.Delete)
+		admin.DELETE("/deployments/:id", deploymentHandler.Delete)
+		admin.DELETE("/subscriptions/:id", subscriptionHandler.Delete)
 		// grit:routes:admin
 	}
 

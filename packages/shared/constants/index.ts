@@ -57,5 +57,47 @@ export const API_ROUTES = {
     DELETE: (id: number) => `/api/admin/blogs/${id}`,
   },
   HEALTH: "/api/health",
+  PROJECTS: {
+    LIST: "/api/projects",
+    GET: (id: number) => `/api/projects/${id}`,
+    CREATE: "/api/projects",
+    UPDATE: (id: number) => `/api/projects/${id}`,
+    DELETE: (id: number) => `/api/projects/${id}`,
+  },
+  CONVERSATIONS: {
+    LIST: "/api/conversations",
+    GET: (id: number) => `/api/conversations/${id}`,
+    CREATE: "/api/conversations",
+    UPDATE: (id: number) => `/api/conversations/${id}`,
+    DELETE: (id: number) => `/api/conversations/${id}`,
+  },
+  PROJECT_PHASES: {
+    LIST: "/api/project_phases",
+    GET: (id: number) => `/api/project_phases/${id}`,
+    CREATE: "/api/project_phases",
+    UPDATE: (id: number) => `/api/project_phases/${id}`,
+    DELETE: (id: number) => `/api/project_phases/${id}`,
+  },
+  CREDIT_LOGS: {
+    LIST: "/api/credit_logs",
+    GET: (id: number) => `/api/credit_logs/${id}`,
+    CREATE: "/api/credit_logs",
+    UPDATE: (id: number) => `/api/credit_logs/${id}`,
+    DELETE: (id: number) => `/api/credit_logs/${id}`,
+  },
+  DEPLOYMENTS: {
+    LIST: "/api/deployments",
+    GET: (id: number) => `/api/deployments/${id}`,
+    CREATE: "/api/deployments",
+    UPDATE: (id: number) => `/api/deployments/${id}`,
+    DELETE: (id: number) => `/api/deployments/${id}`,
+  },
+  SUBSCRIPTIONS: {
+    LIST: "/api/subscriptions",
+    GET: (id: number) => `/api/subscriptions/${id}`,
+    CREATE: "/api/subscriptions",
+    UPDATE: (id: number) => `/api/subscriptions/${id}`,
+    DELETE: (id: number) => `/api/subscriptions/${id}`,
+  },
   // grit:api-routes
 } as const;
