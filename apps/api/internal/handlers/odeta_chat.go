@@ -15,6 +15,7 @@ import (
 	"odeta/apps/api/internal/models"
 	"odeta/apps/api/internal/services/credits"
 	"odeta/apps/api/internal/services/executor"
+	"odeta/apps/api/internal/services/sandbox"
 )
 
 // OdetaChatHandler handles the Odeta AI chat with credit management.
@@ -22,6 +23,7 @@ type OdetaChatHandler struct {
 	DB      *gorm.DB
 	AI      *ai.AI
 	Credits *credits.Service
+	Sandbox *sandbox.Manager // E2B sandbox manager (nil if not configured)
 }
 
 type odetaChatRequest struct {
@@ -232,21 +234,106 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		}
 	}
 
-	// Emit commands as SSE events for the frontend WebContainer to execute
-	// (commands run in the browser, not on the server)
+	// Execute commands — use E2B sandbox if available, else emit for WebContainer
 	if len(commands) > 0 {
 		totalCmds := len(commands)
-		for i, cmd := range commands {
-			c.SSEvent("command_exec", gin.H{
-				"label":   cmd.Label,
-				"command": cmd.Command,
-				"index":   i,
-				"total":   totalCmds,
-			})
-			c.Writer.Flush()
-		}
 
-		h.DB.Model(&project).Update("status", "BUILDING")
+		if h.Sandbox != nil {
+			// ── E2B Cloud Sandbox Execution ──
+			log.Printf("[Project %s] Starting E2B sandbox execution (%d commands)", projectIDStr, totalCmds)
+
+			c.SSEvent("status", gin.H{"message": "Starting secure sandbox..."})
+			c.Writer.Flush()
+
+			sb, sbErr := h.Sandbox.Create()
+			if sbErr != nil {
+				log.Printf("[Project %s] E2B sandbox creation failed: %v", projectIDStr, sbErr)
+				c.SSEvent("error", gin.H{"message": "Sandbox creation failed: " + sbErr.Error()})
+				c.Writer.Flush()
+			} else {
+				log.Printf("[Project %s] E2B sandbox created: %s", projectIDStr, sb.ID)
+				h.DB.Model(&project).Updates(map[string]interface{}{
+					"status": "BUILDING",
+				})
+
+				workDir := "/home/user"
+
+				// Write any files extracted from AI response
+				for _, f := range extractedFiles {
+					sb.WriteFile(workDir+"/"+f.Path, f.Content)
+				}
+
+				// Execute commands
+				for i, cmd := range commands {
+					if !executor.IsSafeCommand(cmd.Command) {
+						continue
+					}
+
+					log.Printf("[Project %s] E2B Step %d/%d: %s", projectIDStr, i+1, totalCmds, cmd.Command)
+
+					c.SSEvent("command_start", gin.H{
+						"label": cmd.Label, "command": cmd.Command,
+						"index": i, "total": totalCmds,
+					})
+					c.Writer.Flush()
+
+					exitCode, runErr := sb.RunCommand(cmd.Command, workDir, func(line string, isErr bool) {
+						evtType := "command_output"
+						if isErr {
+							evtType = "command_error_line"
+						}
+						c.SSEvent(evtType, gin.H{"line": line})
+						c.Writer.Flush()
+					})
+
+					if runErr != nil || exitCode != 0 {
+						log.Printf("[Project %s] E2B Step %d failed", projectIDStr, i+1)
+						c.SSEvent("command_failed", gin.H{
+							"label": cmd.Label, "index": i,
+						})
+					} else {
+						c.SSEvent("command_done", gin.H{
+							"label": cmd.Label, "index": i, "total": totalCmds,
+						})
+					}
+					c.Writer.Flush()
+
+					// After create next-app, update workDir
+					if strings.Contains(cmd.Command, "create next-app") {
+						parts := strings.Fields(cmd.Command)
+						for j, p := range parts {
+							if strings.Contains(p, "next-app") && j+1 < len(parts) && !strings.HasPrefix(parts[j+1], "-") {
+								workDir = "/home/user/" + parts[j+1]
+								break
+							}
+						}
+					}
+				}
+
+				// Get preview URL
+				previewURL := sb.GetPreviewURL(3000)
+				c.SSEvent("preview_ready", gin.H{"url": previewURL})
+				c.Writer.Flush()
+
+				bal, _ := h.Credits.Balance(userID)
+				c.SSEvent("build_complete", gin.H{
+					"credits_remaining": bal,
+					"sandbox_id":        sb.ID,
+					"preview_url":       previewURL,
+				})
+				c.Writer.Flush()
+			}
+		} else {
+			// ── WebContainer Fallback — emit commands for browser execution ──
+			for i, cmd := range commands {
+				c.SSEvent("command_exec", gin.H{
+					"label": cmd.Label, "command": cmd.Command,
+					"index": i, "total": totalCmds,
+				})
+				c.Writer.Flush()
+			}
+			h.DB.Model(&project).Update("status", "BUILDING")
+		}
 	}
 
 	c.SSEvent("done", "[DONE]")

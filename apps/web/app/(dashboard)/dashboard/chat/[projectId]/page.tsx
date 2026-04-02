@@ -92,7 +92,7 @@ export default function ChatPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, buildProgress, sendMessage } = useOdetaChat({
+  const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, buildProgress, previewUrl: e2bPreviewUrl, sendMessage } = useOdetaChat({
     projectId,
     onCreditsUpdate: () => {
       queryClient.invalidateQueries({ queryKey: ["credits"] });
@@ -399,9 +399,9 @@ export default function ChatPage() {
           ) : (
             <>
               <PreviewToolbar activeDevice={previewDevice} onDeviceChange={setPreviewDevice} />
-              {wc.previewUrl ? (
+              {(e2bPreviewUrl || wc.previewUrl) ? (
                 <iframe
-                  src={wc.previewUrl}
+                  src={e2bPreviewUrl || wc.previewUrl || ""}
                   className="w-full flex-1 border-none"
                   title="App preview"
                 />

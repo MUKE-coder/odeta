@@ -38,6 +38,7 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite,
   const [runningCommand, setRunningCommand] = useState<{ label: string; command: string; output: string[]; index?: number; total?: number } | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [buildProgress, setBuildProgress] = useState<{ completed: number; total: number } | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Load conversation history on mount
@@ -170,10 +171,13 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite,
                     setBuildProgress((prev) => prev ? { ...prev, completed: (prev.completed || 0) + 1 } : null);
                   } else if (eventType === "command_failed") {
                     setRunningCommand(null);
+                  } else if (eventType === "preview_ready") {
+                    setPreviewUrl(parsed.url);
                   } else if (eventType === "build_complete") {
                     setIsExecuting(false);
                     setRunningCommand(null);
                     setBuildProgress(null);
+                    if (parsed.preview_url) setPreviewUrl(parsed.preview_url);
                   } else if (eventType === "file_write") {
                     onFileWrite?.(parsed.path, parsed.content);
                   } else if (eventType === "credits") {
@@ -254,6 +258,7 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite,
     isExecuting,
     runningCommand,
     buildProgress,
+    previewUrl,
     stopStreaming,
     creditsRemaining,
   };

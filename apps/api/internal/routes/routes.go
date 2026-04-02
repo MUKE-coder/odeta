@@ -28,6 +28,7 @@ import (
 	"odeta/apps/api/internal/services/grit"
 	"odeta/apps/api/internal/services/devserver"
 	orbitasvc "odeta/apps/api/internal/services/orbita"
+	sandboxsvc "odeta/apps/api/internal/services/sandbox"
 	stripesvc "odeta/apps/api/internal/services/stripe"
 	"odeta/apps/api/internal/handlers/webhooks"
 	"odeta/apps/api/internal/storage"
@@ -286,10 +287,20 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	}
 
 	// Odeta handlers
+	// E2B sandbox manager (nil if not configured)
+	var sandboxManager *sandboxsvc.Manager
+	if cfg.E2BAPIKey != "" {
+		sandboxManager = sandboxsvc.NewManager(cfg.E2BAPIKey, cfg.E2BTemplate)
+		log.Println("E2B sandbox execution configured")
+	} else {
+		log.Println("E2B not configured — commands will be emitted for WebContainer")
+	}
+
 	odetaChatHandler := &handlers.OdetaChatHandler{
 		DB:      db,
 		AI:      svc.AI,
 		Credits: creditsService,
+		Sandbox: sandboxManager,
 	}
 	generateHandler := &handlers.GenerateHandler{
 		DB:       db,

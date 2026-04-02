@@ -97,6 +97,10 @@ type Config struct {
 
 	// Brave Search (for feature discovery)
 	BraveSearchAPIKey string
+
+	// E2B (cloud sandbox for code execution)
+	E2BAPIKey    string
+	E2BTemplate  string
 }
 
 // Load reads configuration from environment variables.
@@ -166,6 +170,8 @@ func Load() (*Config, error) {
 		UnsplashAccessKey: getEnv("UNSPLASH_ACCESS_KEY", ""),
 		GeminiAPIKey:      getEnv("GEMINI_API_KEY", ""),
 		BraveSearchAPIKey: getEnv("BRAVE_SEARCH_API_KEY", ""),
+		E2BAPIKey:         getEnv("E2B_API_KEY", ""),
+		E2BTemplate:       getEnv("E2B_TEMPLATE_ID", "base"),
 	}
 
 	if cfg.DatabaseURL == "" {
