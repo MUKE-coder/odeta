@@ -12,9 +12,10 @@ import { HistorySkeleton } from "@/components/chat/history-skeleton";
 import { DesignPhase, type DesignChoices } from "@/components/chat/design-phase";
 import { EnvTab } from "@/components/chat/env-tab";
 import { THEMES } from "@/lib/themes";
+import { useAuth } from "@/hooks/use-auth";
 import { loadDraft, saveDraft, clearDraft } from "@/lib/chat-draft";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowUp, Code, Eye, GripVertical, Key, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowUp, Code, Eye, FileIcon, GripVertical, Key, Loader2, Paperclip, X } from "lucide-react";
 import Link from "next/link";
 
 export default function ChatPage() {
@@ -25,6 +26,9 @@ export default function ChatPage() {
   const [input, setInput] = useState(() => loadDraft(projectId));
   const [rightTab, setRightTab] = useState<"preview" | "code" | "env">("preview");
   const [splitPos, setSplitPos] = useState(45);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const { user } = useAuth();
+  const isPaid = user?.plan === "starter" || user?.plan === "pro";
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -154,7 +158,7 @@ export default function ChatPage() {
         <div className="flex flex-col" style={{ width: `${splitPos}%` }}>
           <div className="flex-1 overflow-y-auto py-4 space-y-1">
             {!isDesignDone && !isLoadingHistory && messages.length === 0 ? (
-              <DesignPhase onComplete={handleDesignComplete} />
+              <DesignPhase isPaid={isPaid} onComplete={handleDesignComplete} />
             ) : isLoadingHistory ? (
               <HistorySkeleton />
             ) : messages.length === 0 && !isStreaming ? (
@@ -189,7 +193,56 @@ export default function ChatPage() {
 
           {/* Input */}
           <div className="border-t bg-white p-3">
+            {/* Attached file preview */}
+            {attachedFile && (
+              <div className="flex items-center gap-2 px-3 py-1.5 mb-2 bg-accent-light border border-blue-200 rounded-lg text-xs">
+                <FileIcon className="w-3.5 h-3.5 text-accent" />
+                <span className="text-accent font-medium truncate max-w-[160px]">{attachedFile.name}</span>
+                <span className="text-text-tertiary">({(attachedFile.size / 1024).toFixed(0)}KB)</span>
+                <button onClick={() => setAttachedFile(null)} className="ml-auto">
+                  <X className="w-3 h-3 text-accent hover:text-accent-hover" />
+                </button>
+              </div>
+            )}
             <div className="flex items-end gap-2">
+              {/* File attachment button */}
+              <div className="flex-shrink-0 relative group">
+                {isPaid ? (
+                  <label className="w-9 h-9 rounded-xl border bg-white flex items-center justify-center cursor-pointer hover:bg-surface hover:border-border-strong transition-colors">
+                    <Paperclip className="w-4 h-4 text-text-secondary" />
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*,.pdf,.txt,.md,.env"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast.error("File must be under 5MB");
+                            return;
+                          }
+                          setAttachedFile(file);
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <>
+                    <button
+                      className="w-9 h-9 rounded-xl border bg-surface flex items-center justify-center cursor-not-allowed"
+                      title="File upload requires a paid plan"
+                    >
+                      <Paperclip className="w-4 h-4 text-text-tertiary" />
+                    </button>
+                    <div className="absolute bottom-full left-0 mb-2 whitespace-nowrap hidden group-hover:block z-10">
+                      <div className="bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded-lg shadow-lg">
+                        Upgrade to attach files
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
               <textarea
                 value={input}
                 onChange={(e) => handleInputChange(e.target.value)}
