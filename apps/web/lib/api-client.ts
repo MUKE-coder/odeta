@@ -1,8 +1,7 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 
-// Use relative path — proxied by Next.js rewrites to the Go backend
-const API_URL = "";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export const apiClient = axios.create({
   baseURL: API_URL,

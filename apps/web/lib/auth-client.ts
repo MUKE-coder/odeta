@@ -1,6 +1,6 @@
 import Cookies from "js-cookie";
 
-const API_URL = "";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export function getAccessToken(): string | undefined {
   return Cookies.get("access_token");
