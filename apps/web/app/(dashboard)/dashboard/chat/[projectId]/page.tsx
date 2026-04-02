@@ -5,13 +5,11 @@ import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useOdetaChat, type ChatMessage } from "@/hooks/use-chat";
-import { parseAIMessage } from "@/components/chat/message-parser";
-import { QuestionCard } from "@/components/chat/question-card";
-import { CommandCard } from "@/components/chat/command-card";
+import { AIMessage } from "@/components/chat/ai-message";
+import { UserMessage } from "@/components/chat/user-message";
+import { MessageSkeleton } from "@/components/chat/message-skeleton";
 import { toast } from "sonner";
-import {
-  ArrowLeft, ArrowRight, Code, Eye, Loader2, GripVertical,
-} from "lucide-react";
+import { ArrowLeft, ArrowUp, Code, Eye, GripVertical, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function ChatPage() {
@@ -21,7 +19,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
-  const [splitPos, setSplitPos] = useState(45); // percentage for left panel
+  const [splitPos, setSplitPos] = useState(45);
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -33,14 +31,9 @@ export default function ChatPage() {
     },
     enabled: !!projectId,
   });
-
   const project = projectData?.data;
 
-  const {
-    messages,
-    isStreaming,
-    sendMessage,
-  } = useOdetaChat({
+  const { messages, isStreaming, sendMessage } = useOdetaChat({
     projectId,
     onCreditsUpdate: () => {
       queryClient.invalidateQueries({ queryKey: ["credits"] });
@@ -54,7 +47,7 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Resizer logic
+  // Resizer
   const handleMouseDown = useCallback(() => {
     isDragging.current = true;
     document.body.style.cursor = "col-resize";
@@ -62,22 +55,21 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const onMove = (e: MouseEvent) => {
       if (!isDragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const pct = ((e.clientX - rect.left) / rect.width) * 100;
-      setSplitPos(Math.max(25, Math.min(75, pct)));
+      setSplitPos(Math.max(25, Math.min(75, ((e.clientX - rect.left) / rect.width) * 100)));
     };
-    const handleMouseUp = () => {
+    const onUp = () => {
       isDragging.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
     };
   }, []);
 
@@ -87,9 +79,12 @@ export default function ChatPage() {
     setInput("");
   }
 
-  function handleQuestionSelect(option: string) {
+  function handleOptionSelect(option: string) {
     sendMessage(option);
   }
+
+  const lastMsg = messages[messages.length - 1];
+  const showSkeleton = isStreaming && lastMsg?.role === "assistant" && lastMsg?.content === "";
 
   return (
     <div className="-m-6 md:-m-8 flex h-screen flex-col">
@@ -117,79 +112,51 @@ export default function ChatPage() {
         </button>
       </div>
 
-      {/* Two resizable panels */}
+      {/* Two panels */}
       <div ref={containerRef} className="flex flex-1 overflow-hidden">
         {/* Left: Chat */}
         <div className="flex flex-col" style={{ width: `${splitPos}%` }}>
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          <div className="flex-1 overflow-y-auto py-4 space-y-1">
             {messages.length === 0 && !isStreaming && (
-              <div className="flex h-full items-center justify-center">
-                <p className="text-sm text-text-tertiary text-center px-8">
+              <div className="flex h-full items-center justify-center px-8">
+                <p className="text-sm text-text-tertiary text-center">
                   Describe what you want to build and I&apos;ll help you create it step by step.
                 </p>
               </div>
             )}
 
-            {messages.map((msg: ChatMessage) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                {msg.role === "user" ? (
-                  <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-accent px-3.5 py-2 text-[13px] text-white">
-                    {msg.content}
-                  </div>
-                ) : (
-                  <div className="max-w-[90%] space-y-2">
-                    {parseAIMessage(msg.content).map((block, i) => {
-                      if (block.type === "question") {
-                        return (
-                          <QuestionCard
-                            key={i}
-                            text={block.content}
-                            options={block.options || []}
-                            onSelect={handleQuestionSelect}
-                          />
-                        );
-                      }
-                      if (block.type === "command" || block.type === "jb-command") {
-                        return (
-                          <CommandCard key={i} command={block.content} type={block.type} />
-                        );
-                      }
-                      return (
-                        <div
-                          key={i}
-                          className="rounded-2xl rounded-bl-sm bg-surface px-3.5 py-2 text-[13px] text-foreground leading-relaxed"
-                        >
-                          {block.content}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {isStreaming && messages[messages.length - 1]?.content === "" && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl bg-surface px-4 py-3">
-                  <Loader2 className="h-4 w-4 animate-spin text-text-tertiary" />
-                </div>
-              </div>
+            {messages.map((msg: ChatMessage) =>
+              msg.role === "user" ? (
+                <UserMessage key={msg.id} content={msg.content} />
+              ) : (
+                <AIMessage
+                  key={msg.id}
+                  content={msg.content}
+                  isStreaming={isStreaming && msg.id === lastMsg?.id}
+                  onOptionSelect={handleOptionSelect}
+                />
+              )
             )}
+
+            {showSkeleton && <MessageSkeleton />}
             <div ref={messagesEndRef} />
+          </div>
+
+          {/* Credit indicator */}
+          <div className="text-center py-1">
+            <span className="text-[10px] text-text-tertiary">1 credit per message</span>
           </div>
 
           {/* Input */}
           <div className="border-t bg-white p-3">
-            <div className="flex items-end rounded-xl border">
+            <div className="flex items-end gap-2">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Make, test, iterate..."
                 rows={1}
-                className="flex-1 resize-none border-0 bg-transparent px-3 py-2 text-[13px] focus:outline-none"
+                className="flex-1 resize-none rounded-xl border bg-white px-4 py-2.5 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent/40 disabled:opacity-50"
+                style={{ minHeight: "44px", maxHeight: "160px" }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -201,27 +168,28 @@ export default function ChatPage() {
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isStreaming}
-                className="m-1 flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-30 transition-colors"
+                className="w-9 h-9 rounded-xl bg-accent hover:bg-accent-hover disabled:bg-gray-200 flex items-center justify-center transition-colors flex-shrink-0"
               >
-                <ArrowRight className="h-3.5 w-3.5" />
+                {isStreaming ? (
+                  <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                ) : (
+                  <ArrowUp className="w-4 h-4 text-white" />
+                )}
               </button>
             </div>
-            <p className="mt-1 text-center text-[10px] text-text-tertiary">
-              1 credit per message
-            </p>
           </div>
         </div>
 
-        {/* Resizer handle */}
+        {/* Resizer */}
         <div
           onMouseDown={handleMouseDown}
-          className="flex w-2 cursor-col-resize items-center justify-center border-x bg-surface hover:bg-accent-light transition-colors"
+          className="flex w-1.5 cursor-col-resize items-center justify-center bg-gray-100 hover:bg-accent-light transition-colors"
         >
           <GripVertical className="h-4 w-4 text-text-tertiary" />
         </div>
 
         {/* Right: Preview/Code */}
-        <div className="flex flex-1 flex-col">
+        <div className="hidden flex-1 flex-col lg:flex">
           <div className="flex border-b bg-white">
             {(["preview", "code"] as const).map((tab) => (
               <button
@@ -239,7 +207,6 @@ export default function ChatPage() {
               </button>
             ))}
           </div>
-
           <div className="flex flex-1 items-center justify-center bg-surface">
             <div className="text-center px-8">
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white border">

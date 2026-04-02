@@ -1,74 +1,125 @@
-export type MessageBlockType = "text" | "question" | "command" | "jb-command";
+export type MessageBlock =
+  | { type: "text"; content: string }
+  | { type: "question"; text: string; options: string[] }
+  | { type: "command"; content: string; label: string }
+  | { type: "jb-command"; url: string; component: string; description: string }
+  | { type: "code"; language: string; content: string; filename: string }
+  | { type: "plan"; title: string; items: PlanItem[] };
 
-export interface MessageBlock {
-  type: MessageBlockType;
-  content: string;
-  options?: string[];
+export interface PlanItem {
+  label: string;
+  type: "grit" | "jb" | "code";
+  command?: string;
 }
 
-/**
- * Parses AI message content containing structured blocks.
- * Supports: <question>, <command>, <jb-command> XML-style blocks.
- */
-export function parseAIMessage(content: string): MessageBlock[] {
-  const blocks: MessageBlock[] = [];
-  let remaining = content;
+interface FoundBlock {
+  start: number;
+  end: number;
+  block: MessageBlock;
+}
 
-  const patterns = [
-    {
-      regex: /<question>\s*<text>([\s\S]*?)<\/text>\s*<options>([\s\S]*?)<\/options>\s*<\/question>/g,
-      type: "question" as const,
-    },
-    {
-      regex: /<command>([\s\S]*?)<\/command>/g,
-      type: "command" as const,
-    },
-    {
-      regex: /<jb-command>([\s\S]*?)<\/jb-command>/g,
-      type: "jb-command" as const,
-    },
-  ];
+export function parseAIMessage(raw: string): MessageBlock[] {
+  const found: FoundBlock[] = [];
 
-  // Find all special blocks with their positions
-  const found: Array<{ start: number; end: number; block: MessageBlock }> = [];
+  // Parse <question> blocks
+  const questionRe =
+    /<question>\s*([\s\S]*?)\s*OPTIONS:\s*([\s\S]*?)\s*<\/question>/g;
+  let m: RegExpExecArray | null;
+  while ((m = questionRe.exec(raw)) !== null) {
+    found.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      block: {
+        type: "question",
+        text: m[1].trim(),
+        options: m[2].split("|").map((o) => o.trim()),
+      },
+    });
+  }
 
-  for (const pattern of patterns) {
-    let match: RegExpExecArray | null;
-    const re = new RegExp(pattern.regex.source, "g");
-    while ((match = re.exec(content)) !== null) {
-      if (pattern.type === "question") {
-        found.push({
-          start: match.index,
-          end: match.index + match[0].length,
-          block: {
-            type: "question",
-            content: match[1].trim(),
-            options: match[2].split("|").map((o) => o.trim()),
-          },
-        });
-      } else {
-        found.push({
-          start: match.index,
-          end: match.index + match[0].length,
-          block: {
-            type: pattern.type,
-            content: match[1].trim(),
-          },
-        });
-      }
+  // Parse <command> blocks
+  const commandRe =
+    /<command(?:\s+label="([^"]*)")?\s*>\s*([\s\S]*?)\s*<\/command>/g;
+  while ((m = commandRe.exec(raw)) !== null) {
+    found.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      block: {
+        type: "command",
+        label: m[1] || "Terminal",
+        content: m[2].trim(),
+      },
+    });
+  }
+
+  // Parse <jb-command> blocks
+  const jbRe =
+    /<jb-command(?:\s+component="([^"]*)")?(?:\s+url="([^"]*)")?\s*>\s*([\s\S]*?)\s*<\/jb-command>/g;
+  while ((m = jbRe.exec(raw)) !== null) {
+    found.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      block: {
+        type: "jb-command",
+        component: m[1] || "Component",
+        url: m[2] || "",
+        description: m[3].trim(),
+      },
+    });
+  }
+
+  // Parse <code> blocks
+  const codeRe =
+    /<code(?:\s+language="([^"]*)")?(?:\s+filename="([^"]*)")?\s*>\s*([\s\S]*?)\s*<\/code>/g;
+  while ((m = codeRe.exec(raw)) !== null) {
+    found.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      block: {
+        type: "code",
+        language: m[1] || "text",
+        filename: m[2] || "",
+        content: m[3].trim(),
+      },
+    });
+  }
+
+  // Parse <plan> blocks
+  const planRe = /<plan(?:\s+title="([^"]*)")?\s*>\s*([\s\S]*?)\s*<\/plan>/g;
+  while ((m = planRe.exec(raw)) !== null) {
+    const items: PlanItem[] = [];
+    const itemRe = /ITEM:\s*(grit|jb|code)\|(.*?)\|(.*)/g;
+    let im: RegExpExecArray | null;
+    while ((im = itemRe.exec(m[2])) !== null) {
+      items.push({
+        type: im[1] as PlanItem["type"],
+        label: im[2].trim(),
+        command: im[3].trim(),
+      });
     }
+    found.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      block: {
+        type: "plan",
+        title: m[1] || "Build Plan",
+        items,
+      },
+    });
   }
 
   if (found.length === 0) {
-    return [{ type: "text", content: content.trim() }];
+    const trimmed = raw.trim();
+    return trimmed ? [{ type: "text", content: trimmed }] : [];
   }
 
-  // Sort by position
   found.sort((a, b) => a.start - b.start);
 
+  const blocks: MessageBlock[] = [];
   let lastEnd = 0;
+
   for (const item of found) {
-    const textBefore = remaining.substring(lastEnd, item.start).trim();
+    const textBefore = raw.substring(lastEnd, item.start).trim();
     if (textBefore) {
       blocks.push({ type: "text", content: textBefore });
     }
@@ -76,7 +127,7 @@ export function parseAIMessage(content: string): MessageBlock[] {
     lastEnd = item.end;
   }
 
-  const textAfter = remaining.substring(lastEnd).trim();
+  const textAfter = raw.substring(lastEnd).trim();
   if (textAfter) {
     blocks.push({ type: "text", content: textAfter });
   }
