@@ -33,8 +33,8 @@ type Project struct {
 	TechStack      string         `gorm:"type:text" json:"tech_stack"`
 	GithubRepoUrl  string         `gorm:"size:500" json:"github_repo_url"`
 	GithubRepoName string         `gorm:"size:255" json:"github_repo_name"`
-	Subdomain      string         `gorm:"size:255;uniqueIndex" json:"subdomain"`
-	CustomDomain   string         `gorm:"size:255;uniqueIndex" json:"custom_domain"`
+	Subdomain      *string        `gorm:"size:255;uniqueIndex" json:"subdomain"`
+	CustomDomain   *string        `gorm:"size:255;uniqueIndex" json:"custom_domain"`
 	OrbitaAppId    string         `gorm:"size:255" json:"orbita_app_id"`
 	UserId         uint           `gorm:"index;not null" json:"user_id"`
 	User           User           `gorm:"foreignKey:UserId" json:"user,omitempty"`

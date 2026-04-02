@@ -120,18 +120,22 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	}
 
 	item := models.Project{
-		Name: req.Name,
-		Slug: req.Slug,
-		Type: req.Type,
-		Status: req.Status,
-		Description: req.Description,
-		TechStack: req.TechStack,
-		GithubRepoUrl: req.GithubRepoUrl,
+		Name:           req.Name,
+		Slug:           req.Slug,
+		Type:           req.Type,
+		Status:         req.Status,
+		Description:    req.Description,
+		TechStack:      req.TechStack,
+		GithubRepoUrl:  req.GithubRepoUrl,
 		GithubRepoName: req.GithubRepoName,
-		Subdomain: req.Subdomain,
-		CustomDomain: req.CustomDomain,
-		OrbitaAppId: req.OrbitaAppId,
-		UserId: c.GetUint("user_id"),
+		OrbitaAppId:    req.OrbitaAppId,
+		UserId:         c.GetUint("user_id"),
+	}
+	if req.Subdomain != "" {
+		item.Subdomain = &req.Subdomain
+	}
+	if req.CustomDomain != "" {
+		item.CustomDomain = &req.CustomDomain
 	}
 
 	if err := h.DB.Create(&item).Error; err != nil {
@@ -218,10 +222,10 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		updates["github_repo_name"] = req.GithubRepoName
 	}
 	if req.Subdomain != "" {
-		updates["subdomain"] = req.Subdomain
+		updates["subdomain"] = &req.Subdomain
 	}
 	if req.CustomDomain != "" {
-		updates["custom_domain"] = req.CustomDomain
+		updates["custom_domain"] = &req.CustomDomain
 	}
 	if req.OrbitaAppId != "" {
 		updates["orbita_app_id"] = req.OrbitaAppId
