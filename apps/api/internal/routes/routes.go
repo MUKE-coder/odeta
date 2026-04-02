@@ -26,6 +26,7 @@ import (
 	"odeta/apps/api/internal/services/dgateway"
 	githubsvc "odeta/apps/api/internal/services/github"
 	"odeta/apps/api/internal/services/grit"
+	"odeta/apps/api/internal/services/devserver"
 	orbitasvc "odeta/apps/api/internal/services/orbita"
 	stripesvc "odeta/apps/api/internal/services/stripe"
 	"odeta/apps/api/internal/handlers/webhooks"
@@ -237,6 +238,12 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		GitHub: githubService,
 	}
 
+	// Dev server handler
+	devServerManager := devserver.NewManager(3100)
+	devServerHandler := &handlers.DevServerHandler{
+		Manager: devServerManager,
+	}
+
 	// Stripe service (kept for webhook handler compatibility)
 	var stripeService *stripesvc.Service
 	if cfg.StripeSecretKey != "" {
@@ -446,6 +453,14 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 
 		// GitHub integration
 		protected.POST("/projects/:id/github/create", githubHandler.CreateAndPush)
+
+		// Dev server management
+		protected.GET("/projects/:id/server/status", devServerHandler.GetStatus)
+		protected.POST("/projects/:id/server/start", devServerHandler.Start)
+		protected.POST("/projects/:id/server/stop", devServerHandler.Stop)
+		protected.POST("/projects/:id/server/restart", devServerHandler.Restart)
+		protected.POST("/projects/:id/server/run", devServerHandler.RunCommand)
+		protected.GET("/projects/:id/server/logs", devServerHandler.StreamLogs)
 
 		// grit:routes:protected
 	}

@@ -87,7 +87,7 @@ export default function NewProjectPage() {
           What will you build?
         </h1>
         <p className="mt-3 text-text-secondary">
-          Odeta builds real full-stack apps using Grit Framework + battle-tested commands.
+          Next.js fullstack apps built with proven component commands — not hallucinated boilerplate.
         </p>
 
         {/* Preset prompts — shown when empty */}
@@ -159,7 +159,7 @@ export default function NewProjectPage() {
           </div>
 
           <p className="mt-3 text-xs text-text-tertiary">
-            Web App = Go API + Next.js (Grit Double) · Website = Next.js only ·
+            Web App = Next.js fullstack with API routes · Website = Next.js static ·
             1 credit per AI message
           </p>
         </div>

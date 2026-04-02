@@ -1,24 +1,22 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Terminal, Server, Shield, CreditCard, Rocket, Globe,
+  Terminal, Shield, Rocket,
   Database, Layout, FileCode, Cpu, ArrowRight, Zap
 } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Features — Odeta",
-  description: "Explore Odeta's features: Grit Framework integration, JB components, AI chat, deployment, and more.",
+  description: "Explore Odeta's features: AI-powered Next.js app building, JB components, deployment, and more.",
 };
 
-const gritFeatures = [
-  { icon: Server, title: "Go API Backend", description: "Every web app gets a real Go API with Gin router, GORM ORM, and PostgreSQL. Not serverless functions — actual server performance." },
-  { icon: Shield, title: "JWT Auth Built-in", description: "Register, login, refresh tokens, password reset, OAuth, TOTP/2FA — all built into Grit's scaffold. No AI generation needed." },
-  { icon: Layout, title: "Admin Panel Auto-Generated", description: "Every grit generate resource command creates admin panel entries with data tables, create/edit forms, and search." },
-  { icon: Database, title: "GORM + PostgreSQL", description: "Type-safe database models with automatic migrations, associations, indexes, and query optimization." },
-  { icon: Cpu, title: "Background Jobs", description: "asynq + Redis for background processing — credit resets, email sending, image processing, deployment triggers." },
-  { icon: FileCode, title: "Auto TypeScript Types", description: "Grit generates Zod schemas and TypeScript types for every resource. Frontend and backend always in sync." },
+const platformFeatures = [
+  { icon: Rocket, title: "Next.js Fullstack", description: "Every app gets a real Next.js project with App Router, API routes, server actions, and TypeScript." },
+  { icon: Shield, title: "Auth Ready", description: "Better Auth UI component — sign in, sign up, OAuth, password reset, email verification. One command." },
+  { icon: Layout, title: "Admin & Data Tables", description: "JB Data Table component with sorting, filtering, pagination. Manage any data instantly." },
+  { icon: Database, title: "Database Integration", description: "Prisma ORM with PostgreSQL. Type-safe models, migrations, and relations auto-configured." },
+  { icon: Cpu, title: "AI-Powered Discovery", description: "Smart questions to understand exactly what you need. No wasted code, no unnecessary features." },
+  { icon: FileCode, title: "Component Commands", description: "19 production-ready JB components. Each installed with one command — auth, payments, file uploads, and more." },
 ];
 
 const jbComponents = [
@@ -36,88 +34,82 @@ export default function FeaturesPage() {
   return (
     <div className="py-20">
       <div className="container mx-auto px-4">
-        {/* Header */}
         <div className="text-center mb-16">
-          <Badge variant="secondary" className="mb-4">
-            <Zap className="mr-1 h-3 w-3" />
-            Features
-          </Badge>
-          <h1 className="text-4xl font-bold">Commands over code generation</h1>
-          <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
-            Odeta orchestrates Grit Framework and JB component commands to build
-            real apps — not hallucinated boilerplate.
+          <span className="inline-flex items-center gap-1 rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent mb-4">
+            <Zap className="h-3 w-3" /> Features
+          </span>
+          <h1 className="text-4xl font-bold text-foreground">Commands over code generation</h1>
+          <p className="mt-4 text-lg text-text-secondary max-w-2xl mx-auto">
+            Odeta uses AI + battle-tested component commands to build real Next.js apps — not hallucinated boilerplate.
           </p>
         </div>
 
-        {/* Grit Framework */}
         <div className="mb-20">
-          <h2 className="text-2xl font-bold mb-2">Grit Framework — Your Go Backend</h2>
-          <p className="text-muted-foreground mb-8">
-            Every web app Odeta generates uses Grit Double: a Go API + Next.js frontend monorepo.
+          <h2 className="text-2xl font-bold text-foreground mb-2">Platform Features</h2>
+          <p className="text-text-secondary mb-8">
+            Every app Odeta builds is a real Next.js fullstack project with production-ready components.
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {gritFeatures.map((feature) => (
-              <div key={feature.title} className="rounded-xl border border-border/60 bg-card p-6">
-                <feature.icon className="h-8 w-8 text-primary mb-4" />
-                <h3 className="font-semibold mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
+            {platformFeatures.map((feature) => (
+              <div key={feature.title} className="rounded-xl border bg-white p-6 hover:shadow-sm transition-shadow">
+                <feature.icon className="h-6 w-6 text-accent mb-3" />
+                <h3 className="font-semibold text-foreground mb-1">{feature.title}</h3>
+                <p className="text-sm text-text-secondary">{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* JB Components */}
         <div className="mb-20">
-          <h2 className="text-2xl font-bold mb-2">JB Component Registry</h2>
-          <p className="text-muted-foreground mb-8">
-            19 production-ready component sets. One command each. No AI generation.
+          <h2 className="text-2xl font-bold text-foreground mb-2">JB Component Registry</h2>
+          <p className="text-text-secondary mb-8">
+            19 production-ready component sets. One command each. No AI generation needed.
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             {jbComponents.map((comp) => (
-              <div key={comp.name} className="rounded-lg border border-border/60 bg-card p-4">
+              <div key={comp.name} className="rounded-lg border bg-white p-4 hover:shadow-sm transition-shadow">
                 <div className="flex items-center gap-2 mb-1">
-                  <Terminal className="h-4 w-4 text-primary" />
-                  <h4 className="font-medium text-sm">{comp.name}</h4>
+                  <Terminal className="h-4 w-4 text-accent" />
+                  <h4 className="font-medium text-sm text-foreground">{comp.name}</h4>
                 </div>
-                <p className="text-xs text-muted-foreground">{comp.desc}</p>
+                <p className="text-xs text-text-secondary">{comp.desc}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* AI Chat */}
         <div className="mb-20">
-          <h2 className="text-2xl font-bold mb-2">AI-Powered Build Pipeline</h2>
-          <p className="text-muted-foreground mb-8">
+          <h2 className="text-2xl font-bold text-foreground mb-2">AI-Powered Build Pipeline</h2>
+          <p className="text-text-secondary mb-8">
             Odeta&apos;s AI understands your project, creates a build plan with exact commands,
-            and executes them phase by phase with live progress streaming.
+            and executes them phase by phase.
           </p>
-          <div className="rounded-xl border border-border/60 bg-card p-8 max-w-2xl mx-auto font-mono text-sm">
-            <p className="text-muted-foreground">You: <span className="text-foreground">Build me an invoicing SaaS for freelancers</span></p>
-            <p className="mt-3 text-muted-foreground">Odeta: <span className="text-foreground">I&apos;ll use Grit Double for this. Here&apos;s the plan:</span></p>
-            <div className="mt-2 ml-4 space-y-1 text-primary">
-              <p>Phase 1: grit new invoice-pro --double --next</p>
-              <p>Phase 2: grit generate resource Invoice --fields &quot;...&quot;</p>
-              <p>Phase 3: grit generate resource Client --fields &quot;...&quot;</p>
-              <p>Phase 4: pnpm dlx shadcn@latest add stripe-ui-component</p>
+          <div className="rounded-xl border bg-white p-8 max-w-2xl mx-auto font-mono text-sm">
+            <p className="text-text-secondary">You: <span className="text-foreground">Build me an invoicing SaaS for freelancers</span></p>
+            <p className="mt-3 text-text-secondary">Odeta: <span className="text-foreground">I&apos;ll scaffold a Next.js fullstack app. Here&apos;s the plan:</span></p>
+            <div className="mt-2 ml-4 space-y-1 text-accent">
+              <p>Phase 1: pnpm create next-app invoice-pro --typescript --tailwind --app</p>
+              <p>Phase 2: Install Better Auth UI component</p>
+              <p>Phase 3: Install Stripe UI component</p>
+              <p>Phase 4: Install Data Table component</p>
               <p>Phase 5: Custom business logic (PDF export)</p>
             </div>
-            <p className="mt-3 text-muted-foreground">
-              <span className="text-yellow-400">⚡ This will use 5 credits. Approve?</span>
+            <p className="mt-3 text-text-secondary">
+              <span className="text-warning">⚡ This will use 13 credits. Approve?</span>
             </p>
           </div>
         </div>
 
-        {/* CTA */}
         <div className="text-center">
-          <h2 className="text-3xl font-bold">Ready to build?</h2>
-          <p className="mt-3 text-muted-foreground">100 free credits. No credit card required.</p>
-          <Button size="lg" className="mt-6" asChild>
-            <Link href="/auth/sign-up">
-              Get Started Free
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <h2 className="text-3xl font-bold text-foreground">Ready to build?</h2>
+          <p className="mt-3 text-text-secondary">100 free credits. No credit card required.</p>
+          <Link
+            href="/auth/sign-up"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-medium text-white hover:bg-accent-hover transition-colors"
+          >
+            Get Started Free
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </div>
     </div>

@@ -20,7 +20,7 @@ const categories = [
 const features = [
   { icon: Terminal, title: "Commands Over Code Gen", description: "Grit + JB commands replace thousands of lines of AI-generated code. Zero hallucinations." },
   { icon: Shield, title: "Production Auth", description: "Built-in JWT auth, RBAC, OAuth. Not AI-generated security — battle-tested Grit code." },
-  { icon: Rocket, title: "Full-Stack in Minutes", description: "Go API + Next.js frontend. Admin panel, background jobs, email — all auto-generated." },
+  { icon: Rocket, title: "Full-Stack in Minutes", description: "Next.js fullstack with API routes. Auth, dashboard, email — all auto-scaffolded." },
   { icon: CreditCard, title: "Payments Ready", description: "Stripe + DGateway. One command for checkout, billing portal, and subscription management." },
   { icon: Globe, title: "Deploy Included", description: "One-click deployment via Orbita. Auto-provisioned subdomains for every project." },
   { icon: Zap, title: "19 JB Components", description: "Auth UI, data tables, file uploads, multi-step forms — install with one command each." },
@@ -148,7 +148,7 @@ export default function HomePage() {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-foreground">Everything you need to ship</h2>
             <p className="mt-3 text-text-secondary max-w-xl mx-auto">
-              Grit Framework + JB components + AI — a complete build pipeline.
+              Next.js + JB components + AI — a complete build pipeline.
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -216,7 +216,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="border-t py-8">
         <div className="container mx-auto px-4 text-center text-sm text-text-tertiary">
-          &copy; {new Date().getFullYear()} Odeta. Built with Grit Framework.
+          &copy; {new Date().getFullYear()} Odeta. AI-powered app builder.
         </div>
       </footer>
     </>

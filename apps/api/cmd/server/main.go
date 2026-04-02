@@ -25,6 +25,7 @@ import (
 	"odeta/apps/api/internal/mail"
 	"odeta/apps/api/internal/models"
 	"odeta/apps/api/internal/routes"
+	"odeta/apps/api/internal/services/registry"
 	"odeta/apps/api/internal/storage"
 )
 
@@ -44,6 +45,11 @@ func main() {
 	// Auto-migrate all models on startup
 	if err := models.Migrate(db); err != nil {
 		log.Fatalf("Auto-migration failed: %v", err)
+	}
+
+	// Load component registry
+	if _, err := registry.LoadRegistry("COMPONENT_REGISTRY.md"); err != nil {
+		log.Printf("Warning: Component registry not loaded: %v", err)
 	}
 
 	// ── Phase 4 Services ─────────────────────────────────────────
