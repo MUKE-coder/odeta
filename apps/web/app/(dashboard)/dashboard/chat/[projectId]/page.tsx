@@ -58,6 +58,8 @@ export default function ChatPage() {
 
   async function handleDesignComplete(choices: DesignChoices) {
     const theme = THEMES.find((t) => t.id === choices.theme);
+
+    // Save design choices — don't block if it fails
     try {
       await apiClient.patch(`/api/projects/${projectId}/metadata`, {
         designFont: choices.font,
@@ -65,17 +67,18 @@ export default function ChatPage() {
         designTheme: choices.theme,
         designPhaseComplete: true,
       });
-      setDesignComplete(true);
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
-
-      // Auto-send the project description as the first message
-      const openingMsg = project?.description
-        ? `Build this: ${project.description}. Use ${theme?.name || choices.theme} visual style, ${choices.font} font, ${choices.colorScheme} colors.`
-        : `Let's build: ${project?.name || "my project"}. Use ${theme?.name || choices.theme} style.`;
-      setTimeout(() => sendMessage(openingMsg), 300);
     } catch {
-      toast.error("Failed to save design choices");
+      // Continue anyway — design choices are secondary
     }
+
+    // Always proceed regardless of save success
+    setDesignComplete(true);
+
+    const openingMsg = project?.description
+      ? `Build this: ${project.description}. Use ${theme?.name || choices.theme} visual style, ${choices.font} font, ${choices.colorScheme} colors.`
+      : `Let's build: ${project?.name || "my project"}. Use ${theme?.name || choices.theme} style.`;
+    setTimeout(() => sendMessage(openingMsg), 300);
   }
 
   const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, buildProgress, sendMessage } = useOdetaChat({

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"math"
 	"net/http"
 	"strconv"
@@ -328,7 +329,19 @@ func (h *ProjectHandler) UpdateMetadata(c *gin.Context) {
 		return
 	}
 
-	if err := h.DB.Model(&project).Update("metadata", body).Error; err != nil {
+	// Merge with existing metadata
+	existing := make(map[string]interface{})
+	if project.Metadata != nil && *project.Metadata != "" {
+		json.Unmarshal([]byte(*project.Metadata), &existing)
+	}
+	for k, v := range body {
+		existing[k] = v
+	}
+
+	merged, _ := json.Marshal(existing)
+	mergedStr := string(merged)
+
+	if err := h.DB.Model(&project).Update("metadata", &mergedStr).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{"code": "INTERNAL_ERROR", "message": "Failed to update metadata"},
 		})
