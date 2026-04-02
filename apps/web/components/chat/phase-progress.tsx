@@ -5,7 +5,7 @@ import Cookies from "js-cookie";
 import { cn } from "@/lib/utils";
 import { CheckCircle, Circle, Loader2, XCircle } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_URL = "";
 
 interface PhaseEvent {
   type: string;

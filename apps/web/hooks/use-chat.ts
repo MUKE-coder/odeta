@@ -3,7 +3,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Cookies from "js-cookie";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+// Use relative path — proxied by Next.js rewrites to the Go backend
+const API_URL = "";
 
 export interface ChatMessage {
   id: string;
