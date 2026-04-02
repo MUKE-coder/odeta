@@ -232,83 +232,21 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		}
 	}
 
+	// Emit commands as SSE events for the frontend WebContainer to execute
+	// (commands run in the browser, not on the server)
 	if len(commands) > 0 {
-		projectDir, dirErr := executor.EnsureProjectDir(projectIDStr)
-		if dirErr != nil {
-			log.Printf("[Project %s] Failed to create project dir: %v", projectIDStr, dirErr)
-		} else {
-			workDir := projectDir
-			totalCmds := len(commands)
-			completedCmds := 0
-
-			for _, cmd := range commands {
-				if !executor.IsSafeCommand(cmd.Command) {
-					log.Printf("[Project %s] Blocked unsafe command: %s", projectIDStr, cmd.Command)
-					continue
-				}
-
-				log.Printf("[Project %s] Executing: %s", projectIDStr, cmd.Command)
-
-				c.SSEvent("command_start", gin.H{
-					"label":   cmd.Label,
-					"command": cmd.Command,
-					"index":   completedCmds,
-					"total":   totalCmds,
-				})
-				c.Writer.Flush()
-
-				execResult, execErr := executor.RunCommand(cmd.Command, workDir, func(line string, isStderr bool) {
-					evtType := "command_output"
-					if isStderr {
-						evtType = "command_error_line"
-					}
-					c.SSEvent(evtType, gin.H{"line": line})
-					c.Writer.Flush()
-				})
-
-				if execErr != nil || (execResult != nil && execResult.ExitCode != 0) {
-					errMsg := "Command failed"
-					if execResult != nil && execResult.Error != "" {
-						errMsg = execResult.Error
-					} else if execErr != nil {
-						errMsg = execErr.Error()
-					}
-					log.Printf("[Project %s] Failed: %s — %s", projectIDStr, cmd.Command, errMsg)
-					c.SSEvent("command_failed", gin.H{
-						"label": cmd.Label, "command": cmd.Command, "error": errMsg,
-					})
-					c.Writer.Flush()
-				} else {
-					c.SSEvent("command_done", gin.H{
-						"label": cmd.Label, "command": cmd.Command,
-					})
-					c.Writer.Flush()
-
-					if strings.Contains(cmd.Command, "shadcn@latest add https://") {
-						h.Credits.Deduct(userID, 2, models.CreditEventSpentCommand, "Installed: "+cmd.Label, projectIDPtr)
-					}
-				}
-
-				completedCmds++
-
-				// After create next-app, switch to the project subdirectory
-				if strings.Contains(cmd.Command, "create next-app") {
-					workDir = executor.FindNextjsDir(workDir)
-					log.Printf("[Project %s] WorkDir → %s", projectIDStr, workDir)
-				}
-			}
-
-			h.DB.Model(&project).Update("status", "BUILDING")
-
-			// Send build complete event
-			bal, _ := h.Credits.Balance(userID)
-			c.SSEvent("build_complete", gin.H{
-				"completed":         completedCmds,
-				"total":             totalCmds,
-				"credits_remaining": bal,
+		totalCmds := len(commands)
+		for i, cmd := range commands {
+			c.SSEvent("command_exec", gin.H{
+				"label":   cmd.Label,
+				"command": cmd.Command,
+				"index":   i,
+				"total":   totalCmds,
 			})
 			c.Writer.Flush()
 		}
+
+		h.DB.Model(&project).Update("status", "BUILDING")
 	}
 
 	c.SSEvent("done", "[DONE]")

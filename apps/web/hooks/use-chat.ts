@@ -18,6 +18,7 @@ interface UseChatOptions {
   onCreditsUpdate?: (used: number, remaining: number) => void;
   onError?: (error: string) => void;
   onFileWrite?: (path: string, content: string) => void;
+  onCommandExec?: (command: string, label: string, index: number, total: number) => void;
 }
 
 interface ConversationRow {
@@ -28,7 +29,7 @@ interface ConversationRow {
   credits_used: number;
 }
 
-export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite }: UseChatOptions) {
+export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite, onCommandExec }: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -156,6 +157,12 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite 
                     onCreditsUpdate?.(0, parsed.credits_remaining);
                   } else if (eventType === "file_write") {
                     onFileWrite?.(parsed.path, parsed.content);
+                  } else if (eventType === "command_exec") {
+                    // Command to be executed by WebContainer in the browser
+                    setIsExecuting(true);
+                    setBuildProgress({ completed: parsed.index || 0, total: parsed.total || 1 });
+                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [], index: parsed.index, total: parsed.total });
+                    onCommandExec?.(parsed.command, parsed.label, parsed.index, parsed.total);
                   } else if (eventType === "credits") {
                     setCreditsRemaining(parsed.remaining);
                     onCreditsUpdate?.(parsed.used, parsed.remaining);

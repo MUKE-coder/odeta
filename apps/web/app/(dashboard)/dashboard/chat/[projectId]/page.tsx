@@ -109,6 +109,17 @@ export default function ChatPage() {
         }
       }
     },
+    onCommandExec: async (command, label, _index, _total) => {
+      if (wc.status !== "ready" && wc.status !== "running") {
+        console.warn("WebContainer not ready, skipping command:", command);
+        return;
+      }
+      try {
+        await wc.runCommand(command, label);
+      } catch (e) {
+        console.error("WebContainer command failed:", e);
+      }
+    },
   });
 
   // Compute execution state for PlanCard
