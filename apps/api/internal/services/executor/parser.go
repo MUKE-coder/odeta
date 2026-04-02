@@ -87,11 +87,13 @@ func ExtractCommandsFromPlan(text string) []ParsedCommand {
 	return commands
 }
 
-// ExtractAllCommands extracts commands from both <command>/<jb-command> blocks AND <plan> ITEM: lines.
+// ExtractAllCommands extracts commands from <command> blocks, <jb-command> blocks,
+// <plan> ITEM: lines, and raw pnpm commands in the text.
 func ExtractAllCommands(text string) []ParsedCommand {
 	commands := ExtractCommands(text)
 	planCommands := ExtractCommandsFromPlan(text)
-	// Deduplicate — plan commands first, then any standalone commands not in plan
+
+	// Deduplicate — plan commands first, then standalone commands
 	seen := make(map[string]bool)
 	var merged []ParsedCommand
 	for _, cmd := range planCommands {
@@ -103,7 +105,44 @@ func ExtractAllCommands(text string) []ParsedCommand {
 			merged = append(merged, cmd)
 		}
 	}
+
+	// Fallback: if no commands found from XML/plan parsing, scan for raw pnpm commands
+	if len(merged) == 0 {
+		merged = extractRawPnpmCommands(text)
+	}
+
 	return merged
+}
+
+// extractRawPnpmCommands finds pnpm commands in plain text as a fallback.
+func extractRawPnpmCommands(text string) []ParsedCommand {
+	var commands []ParsedCommand
+	seen := make(map[string]bool)
+
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		// Remove markdown code block markers
+		line = strings.TrimPrefix(line, "```")
+		line = strings.TrimPrefix(line, "$ ")
+		line = strings.TrimPrefix(line, "> ")
+		line = strings.TrimSpace(line)
+
+		if strings.HasPrefix(line, "pnpm ") && IsSafeCommand(line) && !seen[line] {
+			seen[line] = true
+			label := "Run command"
+			if strings.Contains(line, "create next-app") {
+				label = "Create Next.js project"
+			} else if strings.Contains(line, "shadcn@latest init") {
+				label = "Initialize shadcn/ui"
+			} else if strings.Contains(line, "shadcn@latest add") {
+				label = "Install components"
+			} else if strings.Contains(line, "prisma") {
+				label = "Setup Prisma"
+			}
+			commands = append(commands, ParsedCommand{Label: label, Command: line})
+		}
+	}
+	return commands
 }
 
 // IsSafeCommand checks that a command is in the allowed list.

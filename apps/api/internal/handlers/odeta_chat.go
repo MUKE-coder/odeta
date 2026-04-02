@@ -167,9 +167,14 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 
 	var fullResponse strings.Builder
 
+	maxTokens := req.MaxTokens
+	if maxTokens == 0 || maxTokens < 4096 {
+		maxTokens = 4096 // ensure plan responses aren't truncated
+	}
+
 	streamErr := h.AI.StreamWithModel(c.Request.Context(), modelID, ai.CompletionRequest{
 		Messages:    messages,
-		MaxTokens:   req.MaxTokens,
+		MaxTokens:   maxTokens,
 		Temperature: req.Temperature,
 	}, func(chunk string) error {
 		fullResponse.WriteString(chunk)
@@ -206,8 +211,16 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	c.Writer.Flush()
 
 	// ── Execute commands found in the AI response ──
-	commands := executor.ExtractAllCommands(fullResponse.String())
+	aiText := fullResponse.String()
+	commands := executor.ExtractAllCommands(aiText)
 	projectIDStr := fmt.Sprintf("%d", req.GetProjectID())
+
+	log.Printf("[Project %s] AI response length: %d chars, found %d executable commands", projectIDStr, len(aiText), len(commands))
+	if len(commands) > 0 {
+		for i, cmd := range commands {
+			log.Printf("[Project %s] Command %d: %s", projectIDStr, i, cmd.Command)
+		}
+	}
 
 	if len(commands) > 0 {
 		projectDir, dirErr := executor.EnsureProjectDir(projectIDStr)
