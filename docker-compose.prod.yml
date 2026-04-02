@@ -13,7 +13,6 @@ services:
       APP_ENV: production
       DATABASE_URL: postgres://${POSTGRES_USER:-grit}:${POSTGRES_PASSWORD}@postgres:5432/odeta?sslmode=disable
       REDIS_URL: redis://redis:6379
-      MINIO_ENDPOINT: http://minio:9000
     volumes:
       - odeta-projects:/tmp/odeta-projects
       - /var/run/docker.sock:/var/run/docker.sock
@@ -72,22 +71,7 @@ services:
     networks:
       - odeta
 
-  minio:
-    image: minio/minio
-    container_name: odeta-minio
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-    volumes:
-      - minio-data:/data
-    networks:
-      - odeta
-    command: server /data --console-address ":9001"
-
-  # Sandbox image builder — builds the image used by dynamic project containers
+  # Builds the odeta-sandbox image — exits after build (expected)
   sandbox-builder:
     build:
       context: ./apps/api
@@ -104,5 +88,4 @@ networks:
 volumes:
   postgres-data:
   redis-data:
-  minio-data:
   odeta-projects:
