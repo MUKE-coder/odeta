@@ -11,6 +11,10 @@ import { MessageSkeleton } from "@/components/chat/message-skeleton";
 import { HistorySkeleton } from "@/components/chat/history-skeleton";
 import { DesignPhase, type DesignChoices } from "@/components/chat/design-phase";
 import { EnvTab } from "@/components/chat/env-tab";
+import { ModelPicker } from "@/components/chat/model-picker";
+import { EditorPanel } from "@/components/editor/editor-panel";
+import { ProjectActions } from "@/components/project/project-actions";
+import { PreviewToolbar, type DeviceId } from "@/components/editor/preview-toolbar";
 import { THEMES } from "@/lib/themes";
 import { useAuth } from "@/hooks/use-auth";
 import { loadDraft, saveDraft, clearDraft } from "@/lib/chat-draft";
@@ -27,6 +31,8 @@ export default function ChatPage() {
   const [rightTab, setRightTab] = useState<"preview" | "code" | "env">("preview");
   const [splitPos, setSplitPos] = useState(45);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [selectedModel, setSelectedModel] = useState("google/gemini-2.0-flash");
+  const [previewDevice, setPreviewDevice] = useState<DeviceId>("desktop");
   const { user } = useAuth();
   const isPaid = user?.plan === "starter" || user?.plan === "pro";
   const isDragging = useRef(false);
@@ -143,13 +149,7 @@ export default function ChatPage() {
             </span>
           )}
         </div>
-        <button
-          disabled
-          className="rounded-lg border px-3 py-1 text-xs text-text-tertiary cursor-not-allowed"
-          title="Publish when your app is ready"
-        >
-          Publish
-        </button>
+        {project && <ProjectActions project={project} />}
       </div>
 
       {/* Two panels */}
@@ -193,6 +193,10 @@ export default function ChatPage() {
 
           {/* Input */}
           <div className="border-t bg-white p-3">
+            {/* Model picker */}
+            <div className="mb-2">
+              <ModelPicker selectedModel={selectedModel} onSelect={setSelectedModel} isPaid={isPaid} />
+            </div>
             {/* Attached file preview */}
             {attachedFile && (
               <div className="flex items-center gap-2 px-3 py-1.5 mb-2 bg-accent-light border border-blue-200 rounded-lg text-xs">
@@ -303,23 +307,22 @@ export default function ChatPage() {
           </div>
           {rightTab === "env" ? (
             <EnvTab projectId={projectId} />
+          ) : rightTab === "code" ? (
+            <EditorPanel />
           ) : (
-          <div className="flex flex-1 items-center justify-center bg-surface">
-            <div className="text-center px-8">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white border">
-                {rightTab === "preview" ? (
-                  <Eye className="h-5 w-5 text-text-tertiary" />
-                ) : (
-                  <Code className="h-5 w-5 text-text-tertiary" />
-                )}
+            <>
+              <PreviewToolbar activeDevice={previewDevice} onDeviceChange={setPreviewDevice} />
+              <div className="flex flex-1 items-center justify-center bg-gray-100">
+                <div className="text-center px-8">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white border">
+                    <Eye className="h-5 w-5 text-text-tertiary" />
+                  </div>
+                  <p className="text-sm text-text-secondary">
+                    Your app preview will appear here as it&apos;s built
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-text-secondary">
-                {rightTab === "preview"
-                  ? "Your app preview will appear here as it's built"
-                  : "Generated code will appear here"}
-              </p>
-            </div>
-          </div>
+            </>
           )}
         </div>
       </div>
