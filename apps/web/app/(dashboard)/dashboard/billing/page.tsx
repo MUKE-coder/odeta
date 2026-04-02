@@ -1,217 +1,243 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
-import { CreditCounter } from "@/components/dashboard/credit-counter";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import {
-  Check, CreditCard, Coins, Zap, ExternalLink, Loader2,
-} from "lucide-react";
+import { Check, Coins, Loader2, Phone } from "lucide-react";
 
 const tiers = [
   {
     name: "Free",
     plan: "free",
-    price: "$0",
+    priceLabel: "Free",
     credits: 100,
-    features: ["100 credits/month", "AI chat", "Project generation", "Community support"],
-    highlighted: false,
+    features: ["100 credits/month", "AI chat (1 credit/msg)", "Project generation (5 credits)", "Community support"],
   },
   {
     name: "Starter",
     plan: "starter",
-    price: "$12",
+    priceLabel: "UGX 45,000/mo",
     credits: 500,
-    features: ["500 credits/month", "Deploy to Orbita", "Custom subdomains", "Priority support", "$0.05/extra credit"],
+    features: ["500 credits/month", "Everything in Free", "Deploy to Orbita", "Priority support"],
     highlighted: true,
   },
   {
     name: "Pro",
     plan: "pro",
-    price: "$29",
+    priceLabel: "UGX 110,000/mo",
     credits: 2000,
-    features: ["2,000 credits/month", "Custom domains", "Priority AI queue", "Team (coming soon)", "$0.03/extra credit"],
-    highlighted: false,
+    features: ["2,000 credits/month", "Everything in Starter", "Custom domains", "Team collaboration", "Priority AI queue"],
   },
 ];
 
-interface SubscriptionResponse {
-  data: {
-    plan: string;
-    credits: number;
-    has_subscription: boolean;
-    subscription_id?: string;
-    status?: string;
-    current_period_end?: string;
-    cancel_at_period_end?: boolean;
-  };
-}
-
 export default function BillingPage() {
   const { user } = useAuth();
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [paymentRef, setPaymentRef] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
-  const { data: subData } = useQuery<SubscriptionResponse>({
+  const { data: subData } = useQuery({
     queryKey: ["subscription"],
-    queryFn: async () => { const { data } = await apiClient.get("/api/billing/subscription"); return data; },
+    queryFn: async () => {
+      const { data } = await apiClient.get("/api/billing/subscription");
+      return data;
+    },
   });
 
-  const subscription = subData?.data;
-  const currentPlan = user?.plan || "free";
-  const credits = user?.credits ?? 0;
-  const maxCredits = tiers.find((t) => t.plan === currentPlan)?.credits || 100;
-  const creditPercent = Math.min((credits / maxCredits) * 100, 100);
+  const currentPlan = subData?.data?.plan || user?.plan || "free";
+  const currentCredits = subData?.data?.credits ?? user?.credits ?? 0;
 
-  async function handleUpgrade(plan: string) {
-    if (plan === "free" || plan === currentPlan) return;
-    setLoadingPlan(plan);
+  async function handlePurchase(plan: string) {
+    if (!phoneNumber.trim()) {
+      toast.error("Enter your phone number to pay via mobile money");
+      return;
+    }
+
+    setPurchasing(plan);
     try {
-      const res = await apiClient.post("/api/billing/checkout", {
-        price_id: `price_${plan}`, // placeholder — real Stripe price IDs configured in production
-        mode: "subscription",
+      const { data: res } = await apiClient.post("/api/billing/purchase", {
+        plan,
+        phone_number: phoneNumber,
+        currency: "UGX",
       });
-      if (res.data?.url) {
-        window.location.href = res.data.url;
-      }
+
+      setPaymentRef(res.data?.reference);
+      toast.success(res.data?.message || "Check your phone to approve the payment");
+      setSelectedPlan(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Upgrade failed";
-      toast.error(message);
+      const msg = err instanceof Error ? err.message : "Payment failed";
+      toast.error(msg);
     } finally {
-      setLoadingPlan(null);
+      setPurchasing(null);
     }
   }
 
-  async function handleManageBilling() {
+  async function checkPaymentStatus() {
+    if (!paymentRef) return;
+    setChecking(true);
     try {
-      const res = await apiClient.post("/api/billing/portal");
-      if (res.data?.url) {
-        window.location.href = res.data.url;
+      const { data: res } = await apiClient.get(`/api/billing/check-payment?reference=${paymentRef}`);
+      const status = res.data?.status;
+
+      if (status === "completed") {
+        toast.success("Payment completed! Credits added to your account.");
+        setPaymentRef(null);
+        queryClient.invalidateQueries({ queryKey: ["credits"] });
+        queryClient.invalidateQueries({ queryKey: ["subscription"] });
+      } else if (status === "failed") {
+        toast.error("Payment failed. Please try again.");
+        setPaymentRef(null);
+      } else {
+        toast.info("Payment is still pending. Check your phone.");
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to open billing portal";
-      toast.error(message);
+    } catch {
+      toast.error("Could not check payment status");
+    } finally {
+      setChecking(false);
     }
   }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Billing</h1>
+    <div className="max-w-4xl">
+      <h1 className="text-2xl font-bold text-foreground">Billing</h1>
+      <p className="mt-1 text-sm text-text-secondary">
+        Manage your plan and credits. Pay via mobile money (MTN/Airtel).
+      </p>
 
-      {/* Current plan summary */}
-      <div className="grid md:grid-cols-2 gap-4 mb-8">
-        <div className="rounded-xl border border-border/60 bg-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-primary" />
-              <h2 className="font-semibold">Current Plan</h2>
-            </div>
-            <Badge variant="secondary" className="capitalize">
-              {currentPlan}
-            </Badge>
+      {/* Current plan card */}
+      <div className="mt-6 rounded-xl border bg-white p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-text-secondary">Current plan</p>
+            <p className="text-lg font-bold text-foreground capitalize">{currentPlan}</p>
           </div>
-
-          {subscription?.has_subscription && (
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status</span>
-                <Badge variant="outline" className="capitalize text-xs">
-                  {subscription.status}
-                </Badge>
-              </div>
-              {subscription.current_period_end && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Renews</span>
-                  <span>{new Date(subscription.current_period_end).toLocaleDateString()}</span>
-                </div>
-              )}
-              {subscription.cancel_at_period_end && (
-                <p className="text-xs text-yellow-500 mt-2">
-                  Subscription will cancel at end of period
-                </p>
-              )}
-            </div>
-          )}
-
-          {subscription?.has_subscription && (
-            <Button variant="outline" size="sm" className="mt-4 w-full" onClick={handleManageBilling}>
-              <ExternalLink className="mr-2 h-3.5 w-3.5" />
-              Manage Billing
-            </Button>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-border/60 bg-card p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Coins className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold">Credits</h2>
+          <div className="text-right">
+            <p className="text-sm text-text-secondary">Credits remaining</p>
+            <p className="text-lg font-bold text-foreground flex items-center gap-1 justify-end">
+              <Coins className="h-4 w-4 text-warning" />
+              {currentCredits}
+            </p>
           </div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <CreditCounter className="text-2xl" />
-            <span className="text-sm text-muted-foreground">/ {maxCredits}</span>
-          </div>
-          <Progress value={creditPercent} className="h-2" />
-          <p className="mt-3 text-xs text-muted-foreground">
-            Credits reset monthly. Chat = 1 credit, Generate = 5 credits, Command = 2 credits.
-          </p>
         </div>
       </div>
 
-      {/* Pricing tiers */}
-      <h2 className="text-lg font-semibold mb-4">Upgrade your plan</h2>
-      <div className="grid md:grid-cols-3 gap-4">
+      {/* Pending payment check */}
+      {paymentRef && (
+        <div className="mt-4 rounded-xl border border-warning/30 bg-yellow-50 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Payment pending</p>
+              <p className="text-xs text-text-secondary mt-0.5">
+                Ref: {paymentRef} — Approve on your phone
+              </p>
+            </div>
+            <button
+              onClick={checkPaymentStatus}
+              disabled={checking}
+              className="rounded-lg bg-foreground px-4 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {checking ? <Loader2 className="h-3 w-3 animate-spin" /> : "Check Status"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Plans */}
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
         {tiers.map((tier) => {
-          const isCurrent = tier.plan === currentPlan;
+          const isCurrent = currentPlan === tier.plan;
           return (
             <div
               key={tier.plan}
-              className={`rounded-xl border p-6 ${
-                tier.highlighted
-                  ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                  : "border-border/60 bg-card"
-              } ${isCurrent ? "ring-2 ring-primary/30" : ""}`}
+              className={`rounded-xl border bg-white p-5 ${
+                tier.highlighted ? "border-accent ring-1 ring-accent/20" : ""
+              }`}
             >
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">{tier.name}</h3>
-                {isCurrent && <Badge>Current</Badge>}
-              </div>
-              <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-2xl font-bold">{tier.price}</span>
-                <span className="text-sm text-muted-foreground">/mo</span>
-              </div>
+              {tier.highlighted && (
+                <span className="inline-block mb-2 rounded-full bg-accent-light px-2.5 py-0.5 text-[10px] font-medium text-accent">
+                  Most Popular
+                </span>
+              )}
+              <h3 className="font-semibold text-foreground">{tier.name}</h3>
+              <p className="mt-1 text-lg font-bold text-foreground">{tier.priceLabel}</p>
+              <p className="text-xs text-accent">{tier.credits} credits</p>
 
               <ul className="mt-4 space-y-2">
                 {tier.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm">
-                    <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <span className="text-muted-foreground">{f}</span>
+                  <li key={f} className="flex items-start gap-2 text-xs">
+                    <Check className="h-3.5 w-3.5 text-success mt-0.5 shrink-0" />
+                    <span className="text-text-secondary">{f}</span>
                   </li>
                 ))}
               </ul>
 
-              <Button
-                className="w-full mt-5"
-                variant={tier.highlighted && !isCurrent ? "default" : "outline"}
-                disabled={isCurrent || tier.plan === "free" || !!loadingPlan}
-                onClick={() => handleUpgrade(tier.plan)}
-              >
-                {loadingPlan === tier.plan ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isCurrent ? (
-                  "Current Plan"
-                ) : tier.plan === "free" ? (
-                  "Free"
-                ) : (
-                  <>
-                    <Zap className="mr-2 h-3.5 w-3.5" />
-                    Upgrade
-                  </>
-                )}
-              </Button>
+              {tier.plan === "free" ? (
+                <div className="mt-4">
+                  {isCurrent ? (
+                    <span className="block w-full rounded-lg border bg-surface py-2 text-center text-xs text-text-secondary">
+                      Current Plan
+                    </span>
+                  ) : (
+                    <span className="block w-full rounded-lg border bg-surface py-2 text-center text-xs text-text-tertiary">
+                      Default
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-4">
+                  {isCurrent ? (
+                    <span className="block w-full rounded-lg border bg-surface py-2 text-center text-xs text-text-secondary">
+                      Current Plan
+                    </span>
+                  ) : selectedPlan === tier.plan ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1 rounded-lg border px-3 py-2">
+                        <Phone className="h-3.5 w-3.5 text-text-tertiary" />
+                        <input
+                          type="tel"
+                          placeholder="256771234567"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          className="flex-1 border-0 bg-transparent text-xs focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        onClick={() => handlePurchase(tier.plan)}
+                        disabled={purchasing === tier.plan}
+                        className="w-full rounded-lg bg-accent py-2 text-xs font-medium text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+                      >
+                        {purchasing === tier.plan ? (
+                          <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          "Pay with Mobile Money"
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setSelectedPlan(null)}
+                        className="w-full text-xs text-text-tertiary hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setSelectedPlan(tier.plan)}
+                      className={`w-full rounded-lg py-2 text-xs font-medium transition-colors ${
+                        tier.highlighted
+                          ? "bg-accent text-white hover:bg-accent-hover"
+                          : "border bg-white text-foreground hover:bg-surface"
+                      }`}
+                    >
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

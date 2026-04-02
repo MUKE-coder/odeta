@@ -1,9 +1,6 @@
 package webhooks
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,23 +14,24 @@ import (
 	"odeta/apps/api/internal/services/credits"
 )
 
-// DGatewayWebhook handles DGateway webhook events for African market payments.
+// DGatewayWebhook handles DGateway webhook events.
 type DGatewayWebhook struct {
-	DB            *gorm.DB
-	Credits       *credits.Service
-	WebhookSecret string
+	DB      *gorm.DB
+	Credits *credits.Service
 }
 
+// dgatewayEvent matches the DGateway webhook payload format.
 type dgatewayEvent struct {
-	Type      string `json:"type"`
-	PaymentID string `json:"payment_id"`
-	Status    string `json:"status"`
-	Amount    int    `json:"amount"`
-	Currency  string `json:"currency"`
-	Metadata  struct {
-		UserID      uint `json:"user_id"`
-		CreditCount int  `json:"credit_count"`
-	} `json:"metadata"`
+	Event     string `json:"event"`
+	Timestamp string `json:"timestamp"`
+	Data      struct {
+		Reference     string                 `json:"reference"`
+		Status        string                 `json:"status"`
+		Amount        int                    `json:"amount"`
+		Currency      string                 `json:"currency"`
+		FailureReason string                 `json:"failure_reason"`
+		Metadata      map[string]interface{} `json:"metadata"`
+	} `json:"data"`
 }
 
 // Handle processes incoming DGateway webhook events.
@@ -44,35 +42,48 @@ func (h *DGatewayWebhook) Handle(c *gin.Context) {
 		return
 	}
 
-	// Verify webhook signature
-	signature := c.GetHeader("X-DGateway-Signature")
-	if !verifyDGatewaySignature(body, signature, h.WebhookSecret) {
-		log.Println("DGateway webhook: invalid signature")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid signature"})
-		return
-	}
-
 	var event dgatewayEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
 
-	log.Printf("DGateway webhook: %s (payment: %s, status: %s)", event.Type, event.PaymentID, event.Status)
+	log.Printf("DGateway webhook: event=%s ref=%s status=%s", event.Event, event.Data.Reference, event.Data.Status)
 
-	if event.Type == "payment.completed" && event.Status == "completed" {
-		h.handlePaymentCompleted(event)
+	switch event.Event {
+	case "transaction.completed":
+		h.handleTransactionCompleted(event)
+	case "subscription.payment_completed":
+		h.handleTransactionCompleted(event)
+	default:
+		log.Printf("DGateway webhook: unhandled event type: %s", event.Event)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"received": true})
 }
 
-func (h *DGatewayWebhook) handlePaymentCompleted(event dgatewayEvent) {
-	userID := event.Metadata.UserID
-	creditCount := event.Metadata.CreditCount
+func (h *DGatewayWebhook) handleTransactionCompleted(event dgatewayEvent) {
+	metadata := event.Data.Metadata
+
+	// Extract user_id and credit_count from metadata
+	userIDFloat, ok := metadata["user_id"].(float64)
+	if !ok {
+		log.Printf("DGateway: missing user_id in metadata")
+		return
+	}
+	userID := uint(userIDFloat)
+
+	creditCountFloat, ok := metadata["credit_count"].(float64)
+	if !ok {
+		log.Printf("DGateway: missing credit_count in metadata")
+		return
+	}
+	creditCount := int(creditCountFloat)
+
+	plan, _ := metadata["plan"].(string)
 
 	if userID == 0 || creditCount == 0 {
-		log.Printf("DGateway: missing user_id or credit_count in metadata")
+		log.Printf("DGateway: invalid user_id=%d or credit_count=%d", userID, creditCount)
 		return
 	}
 
@@ -82,25 +93,20 @@ func (h *DGatewayWebhook) handlePaymentCompleted(event dgatewayEvent) {
 		return
 	}
 
-	_, err := h.Credits.Add(userID, creditCount, models.CreditEventPurchase,
-		fmt.Sprintf("DGateway credit purchase: %d credits (%s %d)",
-			creditCount, event.Currency, event.Amount))
+	// Add credits
+	newBalance, err := h.Credits.Add(userID, creditCount, models.CreditEventPurchase,
+		fmt.Sprintf("DGateway purchase: %d credits (%s %d)",
+			creditCount, event.Data.Currency, event.Data.Amount))
 	if err != nil {
 		log.Printf("DGateway: failed to add credits for user %d: %v", userID, err)
 		return
 	}
 
-	log.Printf("DGateway: added %d credits to user %d", creditCount, userID)
-}
-
-func verifyDGatewaySignature(body []byte, signature, secret string) bool {
-	if secret == "" || signature == "" {
-		return false
+	// Update plan if upgrading
+	if plan != "" && plan != user.Plan {
+		h.DB.Model(&user).Update("plan", plan)
+		log.Printf("DGateway: upgraded user %d to plan %s", userID, plan)
 	}
 
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
-	expected := hex.EncodeToString(mac.Sum(nil))
-
-	return hmac.Equal([]byte(expected), []byte(signature))
+	log.Printf("DGateway: added %d credits to user %d (new balance: %d)", creditCount, userID, newBalance)
 }

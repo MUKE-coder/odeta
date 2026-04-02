@@ -228,25 +228,27 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	}
 	_ = githubService // used in future phases
 
-	// Stripe service
+	// Stripe service (kept for webhook handler compatibility)
 	var stripeService *stripesvc.Service
 	if cfg.StripeSecretKey != "" {
 		stripeService = stripesvc.New(cfg.StripeSecretKey, cfg.FrontendURL)
 		log.Println("Stripe billing configured")
 	}
+	_ = stripeService
 
-	// DGateway service
+	// DGateway service (primary billing)
 	var dgatewayService *dgateway.Service
 	if cfg.DGatewayAPIKey != "" {
-		dgatewayService = dgateway.New(cfg.DGatewayAPIKey)
+		callbackURL := cfg.AppURL + "/api/webhooks/dgateway"
+		dgatewayService = dgateway.New(cfg.DGatewayAPIKey, callbackURL)
 		log.Println("DGateway billing configured")
 	}
-	_ = dgatewayService // used for DGateway payment endpoints
 
-	// Billing handler
+	// Billing handler (DGateway)
 	billingHandler := &handlers.BillingHandler{
-		DB:     db,
-		Stripe: stripeService,
+		DB:       db,
+		DGateway: dgatewayService,
+		Credits:  creditsService,
 	}
 
 	// Webhook handlers
@@ -256,9 +258,8 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		WebhookSecret: cfg.StripeWebhookSecret,
 	}
 	dgatewayWebhook := &webhooks.DGatewayWebhook{
-		DB:            db,
-		Credits:       creditsService,
-		WebhookSecret: cfg.DGatewayWebhookSecret,
+		DB:      db,
+		Credits: creditsService,
 	}
 	githubWebhook := &webhooks.GitHubWebhook{
 		DB:            db,
@@ -404,8 +405,9 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		protected.POST("/subscriptions", subscriptionHandler.Create)
 		protected.PUT("/subscriptions/:id", subscriptionHandler.Update)
 		// Odeta billing routes
-		protected.POST("/billing/checkout", billingHandler.CreateCheckout)
-		protected.POST("/billing/portal", billingHandler.CreatePortal)
+		protected.GET("/billing/plans", billingHandler.GetPlans)
+		protected.POST("/billing/purchase", billingHandler.PurchaseCredits)
+		protected.GET("/billing/check-payment", billingHandler.CheckPayment)
 		protected.GET("/billing/subscription", billingHandler.GetSubscription)
 
 		// Odeta credit routes
