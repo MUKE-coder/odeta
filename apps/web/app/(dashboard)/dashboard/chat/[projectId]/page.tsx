@@ -1,5 +1,10 @@
 "use client";
 
+// Static export: generate empty params, load dynamically on client
+export function generateStaticParams() {
+  return [];
+}
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

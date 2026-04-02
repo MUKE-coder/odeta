@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { GithubIcon as Github } from "@/components/icons";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_URL = "";
 
 export default function SettingsPage() {
   const { user, refetch } = useAuth();

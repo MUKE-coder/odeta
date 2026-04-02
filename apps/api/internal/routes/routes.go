@@ -30,6 +30,7 @@ import (
 	"odeta/apps/api/internal/services/devserver"
 	orbitasvc "odeta/apps/api/internal/services/orbita"
 	sandboxsvc "odeta/apps/api/internal/services/sandbox"
+	"odeta/apps/api/internal/web"
 	stripesvc "odeta/apps/api/internal/services/stripe"
 	"odeta/apps/api/internal/handlers/webhooks"
 	"odeta/apps/api/internal/storage"
@@ -475,6 +476,10 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		protected.POST("/projects/:id/server/run", devServerHandler.RunCommand)
 		protected.GET("/projects/:id/server/logs", devServerHandler.StreamLogs)
 
+		// Registry proxy (moved from Next.js API route)
+		registryProxy := &handlers.RegistryProxyHandler{}
+		protected.GET("/registry-proxy", registryProxy.Proxy)
+
 		// grit:routes:protected
 	}
 
@@ -540,6 +545,10 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 
 	// Custom role-restricted routes
 	// grit:routes:custom
+
+	// SPA handler — serves embedded Next.js static files for all non-API routes
+	// MUST be registered LAST (after all /api/* routes)
+	r.NoRoute(web.Handler())
 
 	return r
 }

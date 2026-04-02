@@ -1,18 +1,20 @@
 services:
-  api:
+  # Single binary: Go API + embedded Next.js SPA
+  app:
     build:
-      context: ./apps/api
+      context: .
       dockerfile: Dockerfile
-    container_name: odeta-api
+    container_name: odeta-app
     restart: unless-stopped
-    expose:
-      - "8080"
+    ports:
+      - "8080:8080"
     env_file:
       - .env
     environment:
       APP_ENV: production
       DATABASE_URL: postgres://${POSTGRES_USER:-grit}:${POSTGRES_PASSWORD}@postgres:5432/odeta?sslmode=disable
       REDIS_URL: redis://redis:6379
+      PORT: "8080"
     volumes:
       - odeta-projects:/tmp/odeta-projects
       - /var/run/docker.sock:/var/run/docker.sock
@@ -21,19 +23,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - odeta
-
-  web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:8080}
-    container_name: odeta-web
-    restart: unless-stopped
-    expose:
-      - "3000"
     networks:
       - odeta
 
@@ -71,7 +60,7 @@ services:
     networks:
       - odeta
 
-  # Builds the odeta-sandbox image — exits after build (expected)
+  # Builds the sandbox image (exits after build — expected)
   sandbox-builder:
     build:
       context: ./apps/api

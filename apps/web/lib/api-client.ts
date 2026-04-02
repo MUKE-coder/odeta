@@ -1,7 +1,8 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+// Same-origin: Go serves both SPA and API on one domain
+const API_URL = "";
 
 export const apiClient = axios.create({
   baseURL: API_URL,
