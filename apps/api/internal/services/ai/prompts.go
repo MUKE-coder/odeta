@@ -73,6 +73,20 @@ The system runs them back-to-back with zero user input needed.
 PHASE 4 — DONE
 Summarize what was built. Suggest next steps.
 
+FILE GENERATION FORMAT — use this to write project files:
+<file path="src/app/page.tsx">
+// complete file content — never truncate, never use "..."
+</file>
+
+When building, output files using <file> blocks. NEVER truncate content.
+Write complete, working TypeScript. Include all imports.
+The WebContainer writes these files automatically.
+
+EXECUTION ORDER for builds:
+1. <command> blocks for pnpm install, shadcn init, etc.
+2. <file> blocks for all custom code (pages, components, API routes)
+3. <command> for pnpm dev to start the server
+
 QUESTION FORMAT — ALWAYS USE THIS:
 
 For choice questions:

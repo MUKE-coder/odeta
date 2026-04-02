@@ -17,6 +17,7 @@ interface UseChatOptions {
   projectId: string | number;
   onCreditsUpdate?: (used: number, remaining: number) => void;
   onError?: (error: string) => void;
+  onFileWrite?: (path: string, content: string) => void;
 }
 
 interface ConversationRow {
@@ -27,7 +28,7 @@ interface ConversationRow {
   credits_used: number;
 }
 
-export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOptions) {
+export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite }: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -153,6 +154,8 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
                     setRunningCommand(null);
                     setBuildProgress(null);
                     onCreditsUpdate?.(0, parsed.credits_remaining);
+                  } else if (eventType === "file_write") {
+                    onFileWrite?.(parsed.path, parsed.content);
                   } else if (eventType === "credits") {
                     setCreditsRemaining(parsed.remaining);
                     onCreditsUpdate?.(parsed.used, parsed.remaining);

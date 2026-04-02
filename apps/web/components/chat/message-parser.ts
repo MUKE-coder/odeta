@@ -4,6 +4,7 @@ export type MessageBlock =
   | { type: "command"; content: string; label: string }
   | { type: "jb-command"; url: string; component: string; description: string }
   | { type: "code"; language: string; content: string; filename: string }
+  | { type: "file"; path: string; content: string }
   | { type: "plan"; title: string; items: PlanItem[] };
 
 export interface PlanItem {
@@ -17,7 +18,7 @@ export function parseAIMessage(raw: string): MessageBlock[] {
   let remaining = raw;
 
   while (remaining.length > 0) {
-    const tagMatch = remaining.match(/<(question|command|jb-command|code|plan)(\s[^>]*)?>/);
+    const tagMatch = remaining.match(/<(question|command|jb-command|code|file|plan)(\s[^>]*)?>/);
 
     if (!tagMatch) {
       const trimmed = remaining.trim();
@@ -100,6 +101,16 @@ export function parseAIMessage(raw: string): MessageBlock[] {
           language: langMatch?.[1] || "text",
           filename: fileMatch?.[1] || "",
           content: innerContent.trim(),
+        });
+        break;
+      }
+
+      case "file": {
+        const pathMatch = tagAttrs.match(/path="([^"]*)"/);
+        blocks.push({
+          type: "file",
+          path: pathMatch?.[1] || "unknown",
+          content: innerContent,
         });
         break;
       }

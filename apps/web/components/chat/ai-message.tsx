@@ -93,6 +93,15 @@ export function AIMessage({
                   filename={block.filename}
                 />
               );
+            case "file":
+              return (
+                <CodeBlock
+                  key={i}
+                  language={block.path.endsWith(".tsx") || block.path.endsWith(".ts") ? "typescript" : block.path.endsWith(".css") ? "css" : "text"}
+                  content={block.content}
+                  filename={block.path}
+                />
+              );
             case "plan":
               return (
                 <PlanCard

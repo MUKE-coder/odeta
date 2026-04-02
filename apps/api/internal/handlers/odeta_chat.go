@@ -210,8 +210,18 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	c.SSEvent("credits", fmt.Sprintf(`{"used":%d,"remaining":%d}`, creditCost, newBalance))
 	c.Writer.Flush()
 
-	// ── Execute commands found in the AI response ──
+	// ── Emit file blocks for WebContainer to write ──
 	aiText := fullResponse.String()
+	extractedFiles := executor.ExtractFiles(aiText)
+	for _, f := range extractedFiles {
+		c.SSEvent("file_write", gin.H{"path": f.Path, "content": f.Content})
+		c.Writer.Flush()
+	}
+	if len(extractedFiles) > 0 {
+		log.Printf("[Project %d] Emitted %d file_write events", req.GetProjectID(), len(extractedFiles))
+	}
+
+	// ── Extract commands for execution ──
 	commands := executor.ExtractAllCommands(aiText)
 	projectIDStr := fmt.Sprintf("%d", req.GetProjectID())
 

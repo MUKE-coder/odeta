@@ -14,6 +14,25 @@ type ParsedCommand struct {
 
 var commandBlockRe = regexp.MustCompile(`(?s)<command(?:\s+label="([^"]*)")?\s*>\s*(.*?)\s*</command>`)
 var jbCommandRe = regexp.MustCompile(`(?s)<jb-command(?:\s+component="([^"]*)")?(?:\s+url="([^"]*)")?\s*>\s*(.*?)\s*</jb-command>`)
+var fileBlockRe = regexp.MustCompile(`(?s)<file\s+path="([^"]+)">\s*(.*?)\s*</file>`)
+
+// ParsedFile represents a file extracted from AI output.
+type ParsedFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+// ExtractFiles pulls all <file path="...">content</file> blocks from AI output.
+func ExtractFiles(text string) []ParsedFile {
+	var files []ParsedFile
+	for _, match := range fileBlockRe.FindAllStringSubmatch(text, -1) {
+		files = append(files, ParsedFile{
+			Path:    match[1],
+			Content: match[2],
+		})
+	}
+	return files
+}
 
 // ExtractCommands pulls all <command> and <jb-command> blocks from AI output.
 func ExtractCommands(text string) []ParsedCommand {
