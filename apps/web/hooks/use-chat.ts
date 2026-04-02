@@ -125,19 +125,38 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite,
           const lines = buffer.split("\n");
           buffer = lines.pop() || "";
 
-          for (const line of lines) {
-            // Handle event: prefixed lines
+          // Process SSE lines — handle event:/data: pairs
+          let pendingEventType: string | null = null;
+
+          for (let li = 0; li < lines.length; li++) {
+            const line = lines[li];
+
+            // Collect event type for next data line
             if (line.startsWith("event:")) {
-              const eventType = line.slice(6).trim();
+              pendingEventType = line.slice(6).trim();
+              continue;
+            }
 
-              // Read next data line
-              const nextIdx = lines.indexOf(line) + 1;
-              if (nextIdx < lines.length && lines[nextIdx].startsWith("data:")) {
-                const eventData = lines[nextIdx].slice(5).trim();
+            if (line.startsWith("data:")) {
+              const rawData = line.slice(5).trim();
+              const eventType = pendingEventType;
+              pendingEventType = null; // consume it
+
+              if (rawData === "[DONE]") {
+                setIsExecuting(false);
+                continue;
+              }
+
+              // If we have an event type, parse as structured event
+              if (eventType) {
                 try {
-                  const parsed = JSON.parse(eventData);
-
-                  if (eventType === "command_start") {
+                  const parsed = JSON.parse(rawData);
+                  if (eventType === "command_exec") {
+                    setIsExecuting(true);
+                    setBuildProgress({ completed: parsed.index || 0, total: parsed.total || 1 });
+                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [], index: parsed.index, total: parsed.total });
+                    onCommandExec?.(parsed.command, parsed.label, parsed.index, parsed.total);
+                  } else if (eventType === "command_start") {
                     setIsExecuting(true);
                     setRunningCommand({ label: parsed.label, command: parsed.command, output: [], index: parsed.index, total: parsed.total });
                     setBuildProgress({ completed: parsed.index || 0, total: parsed.total || 1 });
@@ -154,60 +173,53 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite,
                     setIsExecuting(false);
                     setRunningCommand(null);
                     setBuildProgress(null);
-                    onCreditsUpdate?.(0, parsed.credits_remaining);
                   } else if (eventType === "file_write") {
                     onFileWrite?.(parsed.path, parsed.content);
-                  } else if (eventType === "command_exec") {
-                    // Command to be executed by WebContainer in the browser
-                    setIsExecuting(true);
-                    setBuildProgress({ completed: parsed.index || 0, total: parsed.total || 1 });
-                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [], index: parsed.index, total: parsed.total });
-                    onCommandExec?.(parsed.command, parsed.label, parsed.index, parsed.total);
                   } else if (eventType === "credits") {
                     setCreditsRemaining(parsed.remaining);
                     onCreditsUpdate?.(parsed.used, parsed.remaining);
+                  } else if (eventType === "message") {
+                    // AI text chunk
+                    setMessages((prev) =>
+                      prev.map((m) =>
+                        m.id === assistantId
+                          ? { ...m, content: m.content + (typeof parsed === "string" ? parsed : rawData) }
+                          : m
+                      )
+                    );
                   }
                 } catch {
-                  // ignore parse errors for events
+                  // JSON parse failed for typed event — treat message events as text
+                  if (eventType === "message") {
+                    setMessages((prev) =>
+                      prev.map((m) =>
+                        m.id === assistantId
+                          ? { ...m, content: m.content + rawData }
+                          : m
+                      )
+                    );
+                  }
                 }
-              }
-              continue;
-            }
-
-            if (line.startsWith("data:")) {
-              const data = line.slice(5).trim();
-              if (data === "[DONE]") {
-                setIsExecuting(false);
                 continue;
               }
 
+              // No event type — handle as raw data (credits or text chunk)
               try {
-                const parsed = JSON.parse(data);
-                // Handle command events sent as data-only (no event: prefix)
-                if (parsed.label !== undefined && parsed.command !== undefined) {
-                  // command_start/done events
-                  continue;
-                }
-                if (parsed.line !== undefined) {
-                  // command_output events
-                  setRunningCommand((prev) =>
-                    prev ? { ...prev, output: [...prev.output.slice(-50), parsed.line] } : null
-                  );
-                  continue;
-                }
+                const parsed = JSON.parse(rawData);
                 if (parsed.used !== undefined && parsed.remaining !== undefined) {
                   setCreditsRemaining(parsed.remaining);
                   onCreditsUpdate?.(parsed.used, parsed.remaining);
                   continue;
                 }
               } catch {
-                // Not JSON — treat as text chunk
+                // not JSON
               }
 
+              // Plain text chunk — append to assistant message
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
-                    ? { ...m, content: m.content + data }
+                    ? { ...m, content: m.content + rawData }
                     : m
                 )
               );
