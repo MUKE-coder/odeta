@@ -447,7 +447,7 @@ func (h *AuthHandler) OAuthCallback(c *gin.Context) {
 
 			if err := h.DB.Create(&user).Error; err != nil {
 				log.Printf("OAuth: failed to create user: %v", err)
-				redirectURL := fmt.Sprintf("%s/login?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Failed to create account."))
+				redirectURL := fmt.Sprintf("%s/auth/sign-in?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Failed to create account."))
 				c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 				return
 			}
@@ -460,7 +460,7 @@ func (h *AuthHandler) OAuthCallback(c *gin.Context) {
 			}
 		} else {
 			log.Printf("OAuth: database error: %v", result.Error)
-			redirectURL := fmt.Sprintf("%s/login?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Something went wrong."))
+			redirectURL := fmt.Sprintf("%s/auth/sign-in?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Something went wrong."))
 			c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 			return
 		}
@@ -485,7 +485,7 @@ func (h *AuthHandler) OAuthCallback(c *gin.Context) {
 	}
 
 	if !user.Active {
-		redirectURL := fmt.Sprintf("%s/login?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Your account has been disabled."))
+		redirectURL := fmt.Sprintf("%s/auth/sign-in?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Your account has been disabled."))
 		c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 		return
 	}
@@ -494,7 +494,7 @@ func (h *AuthHandler) OAuthCallback(c *gin.Context) {
 	tokens, err := h.AuthService.GenerateTokenPair(user.ID, user.Email, user.Role)
 	if err != nil {
 		log.Printf("OAuth: failed to generate tokens: %v", err)
-		redirectURL := fmt.Sprintf("%s/login?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Failed to sign in."))
+		redirectURL := fmt.Sprintf("%s/auth/sign-in?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Failed to sign in."))
 		c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 		return
 	}
