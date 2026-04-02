@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Cookies from "js-cookie";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -19,11 +19,45 @@ interface UseChatOptions {
   onError?: (error: string) => void;
 }
 
+interface ConversationRow {
+  id: number;
+  role: string;
+  content: string;
+  created_at: string;
+  credits_used: number;
+}
+
 export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Load conversation history on mount
+  useEffect(() => {
+    if (!projectId) return;
+    setIsLoadingHistory(true);
+
+    const token = Cookies.get("access_token");
+    fetch(`${API_URL}/api/projects/${projectId}/conversations`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        const rows: ConversationRow[] = result.data || [];
+        const loaded: ChatMessage[] = rows.map((row) => ({
+          id: `db-${row.id}`,
+          role: row.role.toLowerCase() as "user" | "assistant",
+          content: row.content,
+          creditsUsed: row.credits_used,
+          timestamp: new Date(row.created_at),
+        }));
+        setMessages(loaded);
+      })
+      .catch((err) => console.error("Failed to load history:", err))
+      .finally(() => setIsLoadingHistory(false));
+  }, [projectId]);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -89,14 +123,8 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
           for (const line of lines) {
             if (line.startsWith("data:")) {
               const data = line.slice(5).trim();
-
-              // Check for event type prefix
-              if (line.startsWith("event:")) continue;
-
-              // Parse SSE events
               if (data === "[DONE]") continue;
 
-              // Try to parse as credits update
               try {
                 const parsed = JSON.parse(data);
                 if (parsed.used !== undefined && parsed.remaining !== undefined) {
@@ -108,7 +136,6 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
                 // Not JSON — treat as text chunk
               }
 
-              // Append text chunk to assistant message
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
@@ -116,17 +143,6 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
                     : m
                 )
               );
-            }
-
-            // Handle event: message format
-            if (line.startsWith("event: message")) {
-              // Next data line will be the content
-              continue;
-            }
-
-            if (line.startsWith("event: credits")) {
-              // Next data line will be credits JSON
-              continue;
             }
           }
         }
@@ -153,6 +169,7 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
     setMessages,
     sendMessage,
     isStreaming,
+    isLoadingHistory,
     stopStreaming,
     creditsRemaining,
   };

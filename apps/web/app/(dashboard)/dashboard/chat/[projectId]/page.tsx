@@ -8,6 +8,10 @@ import { useOdetaChat, type ChatMessage } from "@/hooks/use-chat";
 import { AIMessage } from "@/components/chat/ai-message";
 import { UserMessage } from "@/components/chat/user-message";
 import { MessageSkeleton } from "@/components/chat/message-skeleton";
+import { HistorySkeleton } from "@/components/chat/history-skeleton";
+import { DesignPhase, type DesignChoices } from "@/components/chat/design-phase";
+import { THEMES } from "@/lib/themes";
+import { loadDraft, saveDraft, clearDraft } from "@/lib/chat-draft";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowUp, Code, Eye, GripVertical, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -17,7 +21,7 @@ export default function ChatPage() {
   const projectId = params.projectId as string;
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => loadDraft(projectId));
   const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
   const [splitPos, setSplitPos] = useState(45);
   const isDragging = useRef(false);
@@ -33,7 +37,32 @@ export default function ChatPage() {
   });
   const project = projectData?.data;
 
-  const { messages, isStreaming, sendMessage } = useOdetaChat({
+  // Check if design phase is complete
+  const metadata = project?.metadata ? (typeof project.metadata === "string" ? JSON.parse(project.metadata) : project.metadata) : {};
+  const [designComplete, setDesignComplete] = useState(false);
+  const isDesignDone = designComplete || metadata?.designPhaseComplete;
+
+  async function handleDesignComplete(choices: DesignChoices) {
+    const theme = THEMES.find((t) => t.id === choices.theme);
+    try {
+      await apiClient.patch(`/api/projects/${projectId}/metadata`, {
+        designFont: choices.font,
+        designColorScheme: choices.colorScheme,
+        designTheme: choices.theme,
+        designPhaseComplete: true,
+      });
+      setDesignComplete(true);
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+
+      // Auto-send first message with design context
+      const designMsg = `Build this project. Design: ${choices.font} font, ${choices.colorScheme} colors, ${theme?.name || choices.theme} style.`;
+      setTimeout(() => sendMessage(designMsg), 300);
+    } catch {
+      toast.error("Failed to save design choices");
+    }
+  }
+
+  const { messages, isStreaming, isLoadingHistory, sendMessage } = useOdetaChat({
     projectId,
     onCreditsUpdate: () => {
       queryClient.invalidateQueries({ queryKey: ["credits"] });
@@ -75,8 +104,14 @@ export default function ChatPage() {
 
   function handleSend() {
     if (!input.trim() || isStreaming) return;
+    clearDraft(projectId);
     sendMessage(input.trim());
     setInput("");
+  }
+
+  function handleInputChange(value: string) {
+    setInput(value);
+    saveDraft(projectId, value);
   }
 
   function handleOptionSelect(option: string) {
@@ -117,13 +152,17 @@ export default function ChatPage() {
         {/* Left: Chat */}
         <div className="flex flex-col" style={{ width: `${splitPos}%` }}>
           <div className="flex-1 overflow-y-auto py-4 space-y-1">
-            {messages.length === 0 && !isStreaming && (
+            {!isDesignDone && !isLoadingHistory && messages.length === 0 ? (
+              <DesignPhase onComplete={handleDesignComplete} />
+            ) : isLoadingHistory ? (
+              <HistorySkeleton />
+            ) : messages.length === 0 && !isStreaming ? (
               <div className="flex h-full items-center justify-center px-8">
                 <p className="text-sm text-text-tertiary text-center">
                   Describe what you want to build and I&apos;ll help you create it step by step.
                 </p>
               </div>
-            )}
+            ) : null}
 
             {messages.map((msg: ChatMessage) =>
               msg.role === "user" ? (
@@ -152,7 +191,7 @@ export default function ChatPage() {
             <div className="flex items-end gap-2">
               <textarea
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => handleInputChange(e.target.value)}
                 placeholder="Make, test, iterate..."
                 rows={1}
                 className="flex-1 resize-none rounded-xl border bg-white px-4 py-2.5 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent/40 disabled:opacity-50"

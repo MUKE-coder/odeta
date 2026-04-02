@@ -281,3 +281,59 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		"message": "Project deleted successfully",
 	})
 }
+
+// ListConversations returns all conversations for a project (ordered by created_at ASC).
+func (h *ProjectHandler) ListConversations(c *gin.Context) {
+	projectID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	// Verify project belongs to user
+	var project models.Project
+	if err := h.DB.Where("id = ? AND user_id = ?", projectID, userID).First(&project).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{"code": "NOT_FOUND", "message": "Project not found"},
+		})
+		return
+	}
+
+	var conversations []models.Conversation
+	if err := h.DB.Where("project_id = ?", projectID).Order("created_at asc").Find(&conversations).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{"code": "INTERNAL_ERROR", "message": "Failed to load conversations"},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": conversations})
+}
+
+// UpdateMetadata updates the project's metadata JSON field.
+func (h *ProjectHandler) UpdateMetadata(c *gin.Context) {
+	projectID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var project models.Project
+	if err := h.DB.Where("id = ? AND user_id = ?", projectID, userID).First(&project).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{"code": "NOT_FOUND", "message": "Project not found"},
+		})
+		return
+	}
+
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()},
+		})
+		return
+	}
+
+	if err := h.DB.Model(&project).Update("metadata", body).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{"code": "INTERNAL_ERROR", "message": "Failed to update metadata"},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": project})
+}

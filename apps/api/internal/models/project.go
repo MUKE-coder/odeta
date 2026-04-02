@@ -36,6 +36,7 @@ type Project struct {
 	Subdomain      *string        `gorm:"size:255;uniqueIndex" json:"subdomain"`
 	CustomDomain   *string        `gorm:"size:255;uniqueIndex" json:"custom_domain"`
 	OrbitaAppId    string         `gorm:"size:255" json:"orbita_app_id"`
+	Metadata       *string        `gorm:"type:jsonb;default:'{}'" json:"metadata"`
 	UserId         uint           `gorm:"index;not null" json:"user_id"`
 	User           User           `gorm:"foreignKey:UserId" json:"user,omitempty"`
 	Conversations  []Conversation `gorm:"foreignKey:ProjectId" json:"conversations,omitempty"`

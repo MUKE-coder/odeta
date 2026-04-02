@@ -384,6 +384,8 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		protected.GET("/projects/:id", projectHandler.GetByID)
 		protected.POST("/projects", projectHandler.Create)
 		protected.PUT("/projects/:id", projectHandler.Update)
+		protected.GET("/projects/:id/conversations", projectHandler.ListConversations)
+		protected.PATCH("/projects/:id/metadata", projectHandler.UpdateMetadata)
 		protected.GET("/conversations", conversationHandler.List)
 		protected.GET("/conversations/:id", conversationHandler.GetByID)
 		protected.POST("/conversations", conversationHandler.Create)
