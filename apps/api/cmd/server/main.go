@@ -23,6 +23,7 @@ import (
 	"odeta/apps/api/internal/database"
 	"odeta/apps/api/internal/jobs"
 	"odeta/apps/api/internal/mail"
+	"odeta/apps/api/internal/models"
 	"odeta/apps/api/internal/routes"
 	"odeta/apps/api/internal/storage"
 )
@@ -38,6 +39,11 @@ func main() {
 	db, err := database.Connect(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	// Auto-migrate all models on startup
+	if err := models.Migrate(db); err != nil {
+		log.Fatalf("Auto-migration failed: %v", err)
 	}
 
 	// ── Phase 4 Services ─────────────────────────────────────────
