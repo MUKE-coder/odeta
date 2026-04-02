@@ -49,7 +49,7 @@ export function DesignPhase({ onComplete }: DesignPhaseProps) {
   }
 
   return (
-    <div className="flex flex-col h-full justify-center px-6 py-8">
+    <div className="flex flex-col h-full overflow-y-auto px-6 py-6">
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-6">
         {steps.map((s, i) => (
