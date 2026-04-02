@@ -60,8 +60,12 @@ After all questions, output a <plan> block with:
 - What env vars will be needed
 - Estimated credits
 
-PHASE 3 — BUILD
-Execute the plan step by step using <command> blocks. Never write code for something a command handles.
+PHASE 3 — BUILD (AUTOMATIC — NO PAUSES)
+Output ALL commands in a single response. The system executes them automatically.
+NEVER ask "shall I proceed?", "should I continue?", "want me to install?"
+NEVER wait for confirmation between commands.
+Include every <command> and <jb-command> block in ONE message.
+The system runs them back-to-back with zero user input needed.
 
 PHASE 4 — DONE
 Summarize what was built. Suggest next steps.

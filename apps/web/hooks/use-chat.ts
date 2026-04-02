@@ -32,8 +32,9 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
-  const [runningCommand, setRunningCommand] = useState<{ label: string; command: string; output: string[] } | null>(null);
+  const [runningCommand, setRunningCommand] = useState<{ label: string; command: string; output: string[]; index?: number; total?: number } | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [buildProgress, setBuildProgress] = useState<{ completed: number; total: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Load conversation history on mount
@@ -136,15 +137,22 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
 
                   if (eventType === "command_start") {
                     setIsExecuting(true);
-                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [] });
+                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [], index: parsed.index, total: parsed.total });
+                    setBuildProgress({ completed: parsed.index || 0, total: parsed.total || 1 });
                   } else if (eventType === "command_output" || eventType === "command_error_line") {
                     setRunningCommand((prev) =>
                       prev ? { ...prev, output: [...prev.output.slice(-50), parsed.line] } : null
                     );
                   } else if (eventType === "command_done") {
                     setRunningCommand(null);
+                    setBuildProgress((prev) => prev ? { ...prev, completed: (prev.completed || 0) + 1 } : null);
                   } else if (eventType === "command_failed") {
                     setRunningCommand(null);
+                  } else if (eventType === "build_complete") {
+                    setIsExecuting(false);
+                    setRunningCommand(null);
+                    setBuildProgress(null);
+                    onCreditsUpdate?.(0, parsed.credits_remaining);
                   } else if (eventType === "credits") {
                     setCreditsRemaining(parsed.remaining);
                     onCreditsUpdate?.(parsed.used, parsed.remaining);
@@ -222,6 +230,7 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
     isLoadingHistory,
     isExecuting,
     runningCommand,
+    buildProgress,
     stopStreaming,
     creditsRemaining,
   };

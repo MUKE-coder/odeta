@@ -76,7 +76,7 @@ export default function ChatPage() {
     }
   }
 
-  const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, sendMessage } = useOdetaChat({
+  const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, buildProgress, sendMessage } = useOdetaChat({
     projectId,
     onCreditsUpdate: () => {
       queryClient.invalidateQueries({ queryKey: ["credits"] });
@@ -203,10 +203,36 @@ export default function ChatPage() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Build progress bar */}
+          {isExecuting && buildProgress && (
+            <div className="px-4 py-2 border-t bg-white">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 text-accent animate-spin" />
+                  <span className="text-xs font-medium text-foreground">Building your project...</span>
+                </div>
+                <span className="text-[10px] text-text-tertiary">
+                  {buildProgress.completed}/{buildProgress.total} steps
+                </span>
+              </div>
+              <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-accent rounded-full transition-all duration-500"
+                  style={{ width: `${(buildProgress.completed / Math.max(buildProgress.total, 1)) * 100}%` }}
+                />
+              </div>
+              {runningCommand && (
+                <p className="text-[10px] text-text-tertiary mt-1 truncate">{runningCommand.label}</p>
+              )}
+            </div>
+          )}
+
           {/* Credit indicator */}
-          <div className="text-center py-1">
-            <span className="text-[10px] text-text-tertiary">1 credit per message</span>
-          </div>
+          {!isExecuting && (
+            <div className="text-center py-1">
+              <span className="text-[10px] text-text-tertiary">1 credit per message</span>
+            </div>
+          )}
 
           {/* Input */}
           <div className="border-t bg-white p-3">

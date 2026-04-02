@@ -196,6 +196,8 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 			log.Printf("[Project %s] Failed to create project dir: %v", projectIDStr, dirErr)
 		} else {
 			workDir := projectDir
+			totalCmds := len(commands)
+			completedCmds := 0
 
 			for _, cmd := range commands {
 				if !executor.IsSafeCommand(cmd.Command) {
@@ -208,6 +210,8 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 				c.SSEvent("command_start", gin.H{
 					"label":   cmd.Label,
 					"command": cmd.Command,
+					"index":   completedCmds,
+					"total":   totalCmds,
 				})
 				c.Writer.Flush()
 
@@ -243,6 +247,8 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 					}
 				}
 
+				completedCmds++
+
 				// After create next-app, switch to the project subdirectory
 				if strings.Contains(cmd.Command, "create next-app") {
 					workDir = executor.FindNextjsDir(workDir)
@@ -251,6 +257,15 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 			}
 
 			h.DB.Model(&project).Update("status", "BUILDING")
+
+			// Send build complete event
+			bal, _ := h.Credits.Balance(userID)
+			c.SSEvent("build_complete", gin.H{
+				"completed":         completedCmds,
+				"total":             totalCmds,
+				"credits_remaining": bal,
+			})
+			c.Writer.Flush()
 		}
 	}
 

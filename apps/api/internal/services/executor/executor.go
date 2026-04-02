@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -20,9 +21,83 @@ type ExecutionResult struct {
 	Error    string
 }
 
+// Lines to suppress from chat output (interactive prompts, noise).
+var suppressPatterns = []string{
+	"would you like to install",
+	"which style would you like",
+	"which color would you like",
+	"would you like to use css variables",
+	"? would you like",
+	"you can now run",
+	"we suggest that you begin",
+	"press any key",
+	"preflight checks",
+	"verifying framework",
+	"validating tailwind",
+	"validating import alias",
+	"how would you like to proceed",
+}
+
+func shouldSuppressLine(line string) bool {
+	lower := strings.ToLower(line)
+	for _, pattern := range suppressPatterns {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeCommand adds non-interactive flags to commands.
+func normalizeCommand(command string) string {
+	cmd := strings.TrimSpace(command)
+
+	// pnpm create next-app — ensure --yes and required flags
+	if strings.HasPrefix(cmd, "pnpm create next-app") {
+		if !strings.Contains(cmd, "--yes") {
+			cmd = cmd + " --yes"
+		}
+		for _, flag := range []string{"--typescript", "--tailwind", "--eslint", "--app", "--src-dir"} {
+			if !strings.Contains(cmd, flag) {
+				cmd = cmd + " " + flag
+			}
+		}
+		return cmd
+	}
+
+	// shadcn init — force --yes --defaults
+	if strings.Contains(cmd, "shadcn@latest init") {
+		cmd = regexp.MustCompile(`shadcn@latest init.*$`).
+			ReplaceAllString(cmd, "shadcn@latest init --yes --defaults")
+		return cmd
+	}
+
+	// shadcn add — add --yes --overwrite
+	if strings.Contains(cmd, "shadcn@latest add") {
+		if !strings.Contains(cmd, "--yes") {
+			cmd = cmd + " --yes"
+		}
+		if !strings.Contains(cmd, "--overwrite") {
+			cmd = cmd + " --overwrite"
+		}
+		return cmd
+	}
+
+	// prisma init — add --yes
+	if strings.Contains(cmd, "prisma") && strings.Contains(cmd, "init") {
+		if !strings.Contains(cmd, "--yes") {
+			cmd = cmd + " --yes"
+		}
+	}
+
+	return cmd
+}
+
 // RunCommand executes a shell command in the given directory,
 // streaming output line by line via the callback.
 func RunCommand(command string, workDir string, onLine LineCallback) (*ExecutionResult, error) {
+	command = normalizeCommand(command)
+
 	parts, err := parseCommand(command)
 	if err != nil {
 		return nil, fmt.Errorf("parse command: %w", err)
@@ -34,6 +109,9 @@ func RunCommand(command string, workDir string, onLine LineCallback) (*Execution
 		"CI=true",
 		"FORCE_COLOR=0",
 		"NPM_CONFIG_YES=true",
+		"NEXT_TELEMETRY_DISABLED=1",
+		"DO_NOT_TRACK=1",
+		"ADBLOCK=1",
 	)
 
 	stdout, err := cmd.StdoutPipe()
@@ -51,7 +129,6 @@ func RunCommand(command string, workDir string, onLine LineCallback) (*Execution
 
 	result := &ExecutionResult{Command: command}
 
-	// Read stdout
 	stdoutDone := make(chan struct{})
 	go func() {
 		defer close(stdoutDone)
@@ -59,13 +136,12 @@ func RunCommand(command string, workDir string, onLine LineCallback) (*Execution
 		for scanner.Scan() {
 			line := scanner.Text()
 			result.Output = append(result.Output, line)
-			if onLine != nil {
+			if onLine != nil && !shouldSuppressLine(line) {
 				onLine(line, false)
 			}
 		}
 	}()
 
-	// Read stderr
 	stderrDone := make(chan struct{})
 	go func() {
 		defer close(stderrDone)
@@ -73,13 +149,12 @@ func RunCommand(command string, workDir string, onLine LineCallback) (*Execution
 		for scanner.Scan() {
 			line := scanner.Text()
 			result.Output = append(result.Output, line)
-			if onLine != nil {
+			if onLine != nil && !shouldSuppressLine(line) {
 				onLine(line, true)
 			}
 		}
 	}()
 
-	// Wait for both readers to finish
 	<-stdoutDone
 	<-stderrDone
 
@@ -127,7 +202,6 @@ func FindNextjsDir(baseDir string) string {
 			}
 		}
 	}
-	// If no subdirectory with package.json, check baseDir itself
 	if _, err := os.Stat(filepath.Join(baseDir, "package.json")); err == nil {
 		return baseDir
 	}
