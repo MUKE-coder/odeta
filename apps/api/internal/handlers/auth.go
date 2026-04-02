@@ -404,7 +404,7 @@ func (h *AuthHandler) OAuthCallback(c *gin.Context) {
 	gothUser, err := gothic.CompleteUserAuth(c.Writer, c.Request)
 	if err != nil {
 		log.Printf("OAuth callback error: %v", err)
-		redirectURL := fmt.Sprintf("%s/login?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Authentication failed. Please try again."))
+		redirectURL := fmt.Sprintf("%s/auth/sign-in?error=%s", h.Config.OAuthFrontendURL, url.QueryEscape("Authentication failed. Please try again."))
 		c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 		return
 	}
