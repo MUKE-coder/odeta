@@ -133,7 +133,7 @@ func handleCreditsReset(deps WorkerDeps) func(ctx context.Context, task *asynq.T
 
 		log.Println("Running monthly credit reset...")
 
-		creditsSvc := credits.New(deps.DB)
+		creditsSvc := credits.New(deps.DB, deps.Cache)
 		resetCount, err := creditsSvc.ResetAllDue()
 		if err != nil {
 			return fmt.Errorf("credit reset failed: %w", err)

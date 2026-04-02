@@ -163,7 +163,7 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	}
 
 	// Credits service (used by auth + credits handler)
-	creditsService := credits.New(db)
+	creditsService := credits.New(db, svc.Cache)
 
 	// Handlers
 	authHandler := &handlers.AuthHandler{

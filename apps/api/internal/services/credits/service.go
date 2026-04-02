@@ -1,22 +1,31 @@
 package credits
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"odeta/apps/api/internal/cache"
 	"odeta/apps/api/internal/models"
 
 	"gorm.io/gorm"
 )
 
+const creditCacheTTL = 5 * time.Second
+
+func creditCacheKey(userID uint) string {
+	return fmt.Sprintf("credits:balance:%d", userID)
+}
+
 // Service handles all credit operations with atomic DB transactions.
 type Service struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache *cache.Cache
 }
 
 // New creates a new credits service.
-func New(db *gorm.DB) *Service {
-	return &Service{db: db}
+func New(db *gorm.DB, c *cache.Cache) *Service {
+	return &Service{db: db, cache: c}
 }
 
 // CheckResult contains the result of a credit check.
@@ -76,6 +85,10 @@ func (s *Service) Deduct(userID uint, amount int, eventType, description string,
 		return nil
 	})
 
+	if err == nil {
+		s.invalidateBalanceCache(userID)
+	}
+
 	return newBalance, err
 }
 
@@ -108,12 +121,18 @@ func (s *Service) Add(userID uint, amount int, eventType, description string) (i
 		return nil
 	})
 
+	if err == nil {
+		s.invalidateBalanceCache(userID)
+	}
+
 	return newBalance, err
 }
 
 // Reset resets a user's credits to their plan's monthly allowance.
 // Called by the daily cron job when CreditsResetAt has passed.
 func (s *Service) Reset(userID uint) error {
+	defer s.invalidateBalanceCache(userID)
+
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		var user models.User
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, userID).Error; err != nil {
@@ -148,13 +167,38 @@ func (s *Service) Reset(userID uint) error {
 	})
 }
 
-// Balance returns the current credit balance for a user.
+// Balance returns the current credit balance for a user (Redis cached, 5s TTL).
 func (s *Service) Balance(userID uint) (int, error) {
+	ctx := context.Background()
+	key := creditCacheKey(userID)
+
+	// Try cache first
+	if s.cache != nil {
+		var balance int
+		if found, err := s.cache.Get(ctx, key, &balance); err == nil && found {
+			return balance, nil
+		}
+	}
+
+	// Cache miss — hit DB
 	var user models.User
 	if err := s.db.Select("credits").First(&user, userID).Error; err != nil {
 		return 0, fmt.Errorf("user not found: %w", err)
 	}
+
+	// Store in cache
+	if s.cache != nil {
+		_ = s.cache.Set(ctx, key, user.Credits, creditCacheTTL)
+	}
+
 	return user.Credits, nil
+}
+
+// invalidateBalanceCache removes the cached balance for a user.
+func (s *Service) invalidateBalanceCache(userID uint) {
+	if s.cache != nil {
+		_ = s.cache.Delete(context.Background(), creditCacheKey(userID))
+	}
 }
 
 // Initialize sets up credits for a newly registered user and logs the event.
