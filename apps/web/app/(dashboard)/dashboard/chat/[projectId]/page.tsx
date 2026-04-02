@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { useWebContainer } from "@/hooks/use-webcontainer";
 import { useOdetaChat, type ChatMessage } from "@/hooks/use-chat";
 import { AIMessage } from "@/components/chat/ai-message";
 import { CommandCard } from "@/components/chat/command-card";
@@ -83,32 +82,13 @@ export default function ChatPage() {
     setTimeout(() => sendMessage(openingMsg), 300);
   }
 
-  // WebContainer for in-browser execution
-  const wc = useWebContainer();
-
-  // Boot WebContainer on mount
-  useEffect(() => {
-    wc.boot().catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, buildProgress, previewUrl: e2bPreviewUrl, sendMessage } = useOdetaChat({
+  const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, buildProgress, previewUrl, sendMessage } = useOdetaChat({
     projectId,
     onCreditsUpdate: () => {
       queryClient.invalidateQueries({ queryKey: ["credits"] });
     },
     onError: (error: string) => {
       toast.error(error);
-    },
-    onFileWrite: async (path, content) => {
-      if (wc.status === "ready" || wc.status === "running") {
-        try { await wc.writeFile(path, content); } catch {}
-      }
-    },
-    onCommandExec: async (command, label) => {
-      if (wc.status === "ready" || wc.status === "running") {
-        try { await wc.runCommand(command, label); } catch {}
-      }
     },
   });
 
@@ -399,9 +379,9 @@ export default function ChatPage() {
           ) : (
             <>
               <PreviewToolbar activeDevice={previewDevice} onDeviceChange={setPreviewDevice} />
-              {(e2bPreviewUrl || wc.previewUrl) ? (
+              {previewUrl ? (
                 <iframe
-                  src={e2bPreviewUrl || wc.previewUrl || ""}
+                  src={previewUrl}
                   className="w-full flex-1 border-none"
                   title="App preview"
                 />
@@ -409,7 +389,6 @@ export default function ChatPage() {
                 <BuildPreview
                   currentStep={runningCommand?.label}
                   progressPercent={buildProgressPercent}
-                  recentFiles={wc.files.slice(-6)}
                 />
               ) : (
                 <div className="flex flex-1 items-center justify-center bg-gray-100">
@@ -418,9 +397,7 @@ export default function ChatPage() {
                       <Eye className="h-5 w-5 text-text-tertiary" />
                     </div>
                     <p className="text-sm text-text-secondary">
-                      {wc.status === "booting"
-                        ? "Starting WebContainer..."
-                        : "Your app preview will appear here as it's built"}
+                      Your app preview will appear here as it&apos;s built
                     </p>
                   </div>
                 </div>

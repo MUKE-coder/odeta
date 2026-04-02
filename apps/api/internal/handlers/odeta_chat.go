@@ -23,7 +23,7 @@ type OdetaChatHandler struct {
 	DB      *gorm.DB
 	AI      *ai.AI
 	Credits *credits.Service
-	Sandbox *sandbox.Manager // E2B sandbox manager (nil if not configured)
+	Docker  *sandbox.DockerManager // Docker sandbox (nil if Docker unavailable)
 }
 
 type odetaChatRequest struct {
@@ -234,42 +234,38 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		}
 	}
 
-	// Execute commands — use E2B sandbox if available, else emit for WebContainer
+	// Execute commands — use Docker sandbox if available, else emit for frontend
 	if len(commands) > 0 {
 		totalCmds := len(commands)
 
-		if h.Sandbox != nil {
-			// ── E2B Cloud Sandbox Execution ──
-			log.Printf("[Project %s] Starting E2B sandbox execution (%d commands)", projectIDStr, totalCmds)
+		if h.Docker != nil {
+			// ── Docker Sandbox Execution ──
+			log.Printf("[Project %s] Starting Docker sandbox (%d commands)", projectIDStr, totalCmds)
 
-			c.SSEvent("status", gin.H{"message": "Starting secure sandbox..."})
+			c.SSEvent("status", gin.H{"message": "Starting sandbox..."})
 			c.Writer.Flush()
 
-			sb, sbErr := h.Sandbox.Create()
+			sb, sbErr := h.Docker.GetOrCreate(projectIDStr)
 			if sbErr != nil {
-				log.Printf("[Project %s] E2B sandbox creation failed: %v", projectIDStr, sbErr)
-				c.SSEvent("error", gin.H{"message": "Sandbox creation failed: " + sbErr.Error()})
-				c.Writer.Flush()
-			} else {
-				log.Printf("[Project %s] E2B sandbox created: %s", projectIDStr, sb.ID)
-				h.DB.Model(&project).Updates(map[string]interface{}{
-					"status": "BUILDING",
-				})
-
-				workDir := "/home/user"
-
-				// Write any files extracted from AI response
-				for _, f := range extractedFiles {
-					sb.WriteFile(workDir+"/"+f.Path, f.Content)
+				log.Printf("[Project %s] Docker sandbox failed: %v", projectIDStr, sbErr)
+				// Fall back to emitting commands
+				for i, cmd := range commands {
+					c.SSEvent("command_exec", gin.H{
+						"label": cmd.Label, "command": cmd.Command,
+						"index": i, "total": totalCmds,
+					})
+					c.Writer.Flush()
 				}
+			} else {
+				h.DB.Model(&project).Update("status", "BUILDING")
+				workDir := sb.WorkDir
 
-				// Execute commands
 				for i, cmd := range commands {
 					if !executor.IsSafeCommand(cmd.Command) {
 						continue
 					}
 
-					log.Printf("[Project %s] E2B Step %d/%d: %s", projectIDStr, i+1, totalCmds, cmd.Command)
+					log.Printf("[Project %s] Step %d/%d: %s", projectIDStr, i+1, totalCmds, cmd.Command)
 
 					c.SSEvent("command_start", gin.H{
 						"label": cmd.Label, "command": cmd.Command,
@@ -287,14 +283,10 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 					})
 
 					if runErr != nil || exitCode != 0 {
-						log.Printf("[Project %s] E2B Step %d failed", projectIDStr, i+1)
-						c.SSEvent("command_failed", gin.H{
-							"label": cmd.Label, "index": i,
-						})
+						log.Printf("[Project %s] Step %d failed", projectIDStr, i+1)
+						c.SSEvent("command_failed", gin.H{"label": cmd.Label, "index": i})
 					} else {
-						c.SSEvent("command_done", gin.H{
-							"label": cmd.Label, "index": i, "total": totalCmds,
-						})
+						c.SSEvent("command_done", gin.H{"label": cmd.Label, "index": i, "total": totalCmds})
 					}
 					c.Writer.Flush()
 
@@ -310,21 +302,19 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 					}
 				}
 
-				// Get preview URL
-				previewURL := sb.GetPreviewURL(3000)
+				previewURL := sb.GetPreviewURL()
 				c.SSEvent("preview_ready", gin.H{"url": previewURL})
 				c.Writer.Flush()
 
 				bal, _ := h.Credits.Balance(userID)
 				c.SSEvent("build_complete", gin.H{
 					"credits_remaining": bal,
-					"sandbox_id":        sb.ID,
 					"preview_url":       previewURL,
 				})
 				c.Writer.Flush()
 			}
 		} else {
-			// ── WebContainer Fallback — emit commands for browser execution ──
+			// ── Fallback — emit commands for frontend ──
 			for i, cmd := range commands {
 				c.SSEvent("command_exec", gin.H{
 					"label": cmd.Label, "command": cmd.Command,

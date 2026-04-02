@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os/exec"
 	"time"
 
 	"github.com/MUKE-coder/gin-docs/gindocs"
@@ -287,20 +288,21 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	}
 
 	// Odeta handlers
-	// E2B sandbox manager (nil if not configured)
-	var sandboxManager *sandboxsvc.Manager
-	if cfg.E2BAPIKey != "" {
-		sandboxManager = sandboxsvc.NewManager(cfg.E2BAPIKey, cfg.E2BTemplate)
-		log.Println("E2B sandbox execution configured")
+	// Docker sandbox manager — runs commands in isolated containers
+	var dockerManager *sandboxsvc.DockerManager
+	// Check if Docker is available
+	if _, err := exec.LookPath("docker"); err == nil {
+		dockerManager = sandboxsvc.NewDockerManager("odeta-sandbox")
+		log.Println("Docker sandbox execution configured")
 	} else {
-		log.Println("E2B not configured — commands will be emitted for WebContainer")
+		log.Println("Docker not available — commands will be emitted for frontend")
 	}
 
 	odetaChatHandler := &handlers.OdetaChatHandler{
 		DB:      db,
 		AI:      svc.AI,
 		Credits: creditsService,
-		Sandbox: sandboxManager,
+		Docker:  dockerManager,
 	}
 	generateHandler := &handlers.GenerateHandler{
 		DB:       db,

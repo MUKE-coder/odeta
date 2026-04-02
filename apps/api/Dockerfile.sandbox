@@ -1,0 +1,15 @@
+FROM node:20-slim
+
+# Install pnpm
+RUN npm install -g pnpm@9
+
+# Pre-cache common Next.js deps for faster project creation
+RUN mkdir /tmp/cache && cd /tmp/cache && \
+    pnpm init -y && \
+    pnpm add next@15 react@19 react-dom@19 typescript \
+    tailwindcss @types/node @types/react @types/react-dom \
+    eslint eslint-config-next class-variance-authority \
+    clsx tailwind-merge lucide-react && \
+    rm -rf /tmp/cache
+
+WORKDIR /home/user
