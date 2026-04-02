@@ -23,10 +23,23 @@ type OdetaChatHandler struct {
 }
 
 type odetaChatRequest struct {
-	ProjectID   uint         `json:"project_id" binding:"required"`
+	ProjectID   interface{}  `json:"project_id" binding:"required"`
 	Messages    []ai.Message `json:"messages" binding:"required"`
 	MaxTokens   int          `json:"max_tokens"`
 	Temperature float64      `json:"temperature"`
+}
+
+func (r *odetaChatRequest) GetProjectID() uint {
+	switch v := r.ProjectID.(type) {
+	case float64:
+		return uint(v)
+	case string:
+		var id uint
+		fmt.Sscanf(v, "%d", &id)
+		return id
+	default:
+		return 0
+	}
 }
 
 // Chat handles streaming AI chat with credit checks and conversation persistence.
@@ -50,7 +63,7 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 
 	// Verify project belongs to user
 	var project models.Project
-	if err := h.DB.Where("id = ? AND user_id = ?", req.ProjectID, userID).First(&project).Error; err != nil {
+	if err := h.DB.Where("id = ? AND user_id = ?", req.GetProjectID(), userID).First(&project).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": gin.H{"code": "NOT_FOUND", "message": "Project not found"},
 		})
@@ -79,7 +92,7 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 
 	// Load conversation history from DB
 	var history []models.Conversation
-	h.DB.Where("project_id = ?", req.ProjectID).Order("created_at asc").Find(&history)
+	h.DB.Where("project_id = ?", req.GetProjectID()).Order("created_at asc").Find(&history)
 
 	// Build messages with system prompt + history + new messages
 	messages := []ai.Message{
@@ -103,7 +116,7 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	}
 	if lastUserMsg != "" {
 		userConv := models.Conversation{
-			ProjectId: req.ProjectID,
+			ProjectId: req.GetProjectID(),
 			Role:      models.ConversationRoleUser,
 			Content:   lastUserMsg,
 			Phase:     models.ConversationPhaseDiscovery,
@@ -136,9 +149,10 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	}
 
 	// Save AI response to DB
-	projectIDPtr := &req.ProjectID
+	pid := req.GetProjectID()
+	projectIDPtr := &pid
 	aiConv := models.Conversation{
-		ProjectId:   req.ProjectID,
+		ProjectId:   req.GetProjectID(),
 		Role:        models.ConversationRoleAssistant,
 		Content:     fullResponse.String(),
 		Phase:       models.ConversationPhaseDiscovery,

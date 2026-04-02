@@ -54,7 +54,7 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
-            project_id: projectId,
+            project_id: Number(projectId),
             messages: [{ role: "user", content }],
           }),
           signal: abortRef.current.signal,
