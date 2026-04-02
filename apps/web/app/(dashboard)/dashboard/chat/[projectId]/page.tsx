@@ -14,6 +14,7 @@ import { DesignPhase, type DesignChoices } from "@/components/chat/design-phase"
 import { EnvTab } from "@/components/chat/env-tab";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { EditorPanel } from "@/components/editor/editor-panel";
+import { BuildPreview } from "@/components/editor/build-preview";
 import { ProjectActions } from "@/components/project/project-actions";
 import { PreviewToolbar, type DeviceId } from "@/components/editor/preview-toolbar";
 import { THEMES } from "@/lib/themes";
@@ -90,6 +91,16 @@ export default function ChatPage() {
       toast.error(error);
     },
   });
+
+  // Compute execution state for PlanCard
+  const activeCommandIndex = runningCommand?.index ?? null;
+  const completedCommandIndexes = buildProgress
+    ? Array.from({ length: buildProgress.completed }, (_, i) => i)
+    : [];
+  const currentCommandOutput = runningCommand?.output ?? [];
+  const buildProgressPercent = buildProgress
+    ? (buildProgress.completed / Math.max(buildProgress.total, 1)) * 100
+    : 0;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -187,6 +198,9 @@ export default function ChatPage() {
                   isStreaming={isStreaming && msg.id === lastMsg?.id}
                   onOptionSelect={handleOptionSelect}
                   answeredQuestions={answeredQuestions}
+                  activeCommandIndex={msg.id === lastMsg?.id ? activeCommandIndex : null}
+                  completedCommandIndexes={msg.id === lastMsg?.id ? completedCommandIndexes : []}
+                  currentCommandOutput={msg.id === lastMsg?.id ? currentCommandOutput : []}
                 />
               )
             )}
@@ -365,16 +379,23 @@ export default function ChatPage() {
           ) : (
             <>
               <PreviewToolbar activeDevice={previewDevice} onDeviceChange={setPreviewDevice} />
-              <div className="flex flex-1 items-center justify-center bg-gray-100">
-                <div className="text-center px-8">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white border">
-                    <Eye className="h-5 w-5 text-text-tertiary" />
+              {isExecuting ? (
+                <BuildPreview
+                  currentStep={runningCommand?.label}
+                  progressPercent={buildProgressPercent}
+                />
+              ) : (
+                <div className="flex flex-1 items-center justify-center bg-gray-100">
+                  <div className="text-center px-8">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white border">
+                      <Eye className="h-5 w-5 text-text-tertiary" />
+                    </div>
+                    <p className="text-sm text-text-secondary">
+                      Your app preview will appear here as it&apos;s built
+                    </p>
                   </div>
-                  <p className="text-sm text-text-secondary">
-                    Your app preview will appear here as it&apos;s built
-                  </p>
                 </div>
-              </div>
+              )}
             </>
           )}
         </div>

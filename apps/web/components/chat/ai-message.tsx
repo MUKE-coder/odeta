@@ -15,6 +15,9 @@ interface AIMessageProps {
   isStreaming?: boolean;
   onOptionSelect?: (option: string) => void;
   answeredQuestions?: Record<string, string>;
+  activeCommandIndex?: number | null;
+  completedCommandIndexes?: number[];
+  currentCommandOutput?: string[];
 }
 
 export function AIMessage({
@@ -22,6 +25,9 @@ export function AIMessage({
   isStreaming,
   onOptionSelect,
   answeredQuestions = {},
+  activeCommandIndex = null,
+  completedCommandIndexes = [],
+  currentCommandOutput = [],
 }: AIMessageProps) {
   const blocks = parseAIMessage(content);
 
@@ -89,7 +95,14 @@ export function AIMessage({
               );
             case "plan":
               return (
-                <PlanCard key={i} title={block.title} items={block.items} />
+                <PlanCard
+                  key={i}
+                  title={block.title}
+                  items={block.items}
+                  activeIndex={activeCommandIndex}
+                  completedIndexes={completedCommandIndexes}
+                  currentOutput={currentCommandOutput}
+                />
               );
             default:
               return null;
