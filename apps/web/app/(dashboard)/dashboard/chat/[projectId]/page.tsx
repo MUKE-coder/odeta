@@ -33,6 +33,8 @@ export default function ChatPage() {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [selectedModel, setSelectedModel] = useState("google/gemini-2.0-flash");
   const [previewDevice, setPreviewDevice] = useState<DeviceId>("desktop");
+  const [answeredQuestions, setAnsweredQuestions] = useState<Record<string, string>>({});
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useAuth();
   const isPaid = user?.plan === "starter" || user?.plan === "pro";
   const isDragging = useRef(false);
@@ -178,6 +180,7 @@ export default function ChatPage() {
                   content={msg.content}
                   isStreaming={isStreaming && msg.id === lastMsg?.id}
                   onOptionSelect={handleOptionSelect}
+                  answeredQuestions={answeredQuestions}
                 />
               )
             )}
@@ -248,12 +251,17 @@ export default function ChatPage() {
                 )}
               </div>
               <textarea
+                ref={textareaRef}
                 value={input}
-                onChange={(e) => handleInputChange(e.target.value)}
+                onChange={(e) => {
+                  handleInputChange(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                }}
                 placeholder="Make, test, iterate..."
-                rows={1}
-                className="flex-1 resize-none rounded-xl border bg-white px-4 py-2.5 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent/40 disabled:opacity-50"
-                style={{ minHeight: "44px", maxHeight: "160px" }}
+                rows={3}
+                className="flex-1 resize-none rounded-2xl border bg-white px-4 py-3.5 text-sm leading-relaxed placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent/40 disabled:opacity-50 overflow-y-auto"
+                style={{ minHeight: "80px", maxHeight: "200px" }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();

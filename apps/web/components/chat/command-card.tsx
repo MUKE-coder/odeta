@@ -39,12 +39,7 @@ export function CommandCard({ content, label }: CommandCardProps) {
       <div className="bg-[#0d1117] px-4 py-3">
         <code className="text-sm font-mono leading-relaxed">
           <span className="text-gray-500">$ </span>
-          {content.startsWith("grit ") ? (
-            <>
-              <span className="text-emerald-400">grit</span>
-              <span className="text-blue-300"> {content.slice(5)}</span>
-            </>
-          ) : content.startsWith("pnpm ") ? (
+          {content.startsWith("pnpm ") ? (
             <>
               <span className="text-red-400">pnpm</span>
               <span className="text-gray-200"> {content.slice(5)}</span>

@@ -14,9 +14,15 @@ interface AIMessageProps {
   content: string;
   isStreaming?: boolean;
   onOptionSelect?: (option: string) => void;
+  answeredQuestions?: Record<string, string>;
 }
 
-export function AIMessage({ content, isStreaming, onOptionSelect }: AIMessageProps) {
+export function AIMessage({
+  content,
+  isStreaming,
+  onOptionSelect,
+  answeredQuestions = {},
+}: AIMessageProps) {
   const blocks = parseAIMessage(content);
 
   return (
@@ -38,15 +44,23 @@ export function AIMessage({ content, isStreaming, onOptionSelect }: AIMessagePro
                   </ReactMarkdown>
                 </div>
               );
-            case "question":
+            case "question": {
+              const answered = answeredQuestions[block.text];
               return (
                 <QuestionCard
                   key={i}
                   text={block.text}
+                  questionType={block.questionType}
                   options={block.options}
-                  onSelect={onOptionSelect || (() => {})}
+                  placeholder={block.placeholder}
+                  isAnswered={!!answered}
+                  selectedAnswer={answered}
+                  onSelect={(answer) => {
+                    onOptionSelect?.(answer);
+                  }}
                 />
               );
+            }
             case "command":
               return (
                 <CommandCard

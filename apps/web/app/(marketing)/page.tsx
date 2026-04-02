@@ -18,8 +18,8 @@ const categories = [
 ];
 
 const features = [
-  { icon: Terminal, title: "Commands Over Code Gen", description: "Grit + JB commands replace thousands of lines of AI-generated code. Zero hallucinations." },
-  { icon: Shield, title: "Production Auth", description: "Built-in JWT auth, RBAC, OAuth. Not AI-generated security — battle-tested Grit code." },
+  { icon: Terminal, title: "Commands Over Code Gen", description: "JB component commands replace thousands of lines of AI-generated code. Zero hallucinations." },
+  { icon: Shield, title: "Production Auth", description: "Better Auth UI — sign in, sign up, OAuth, password reset. One command, battle-tested." },
   { icon: Rocket, title: "Full-Stack in Minutes", description: "Next.js fullstack with API routes. Auth, dashboard, email — all auto-scaffolded." },
   { icon: CreditCard, title: "Payments Ready", description: "Stripe + DGateway. One command for checkout, billing portal, and subscription management." },
   { icon: Globe, title: "Deploy Included", description: "One-click deployment via Orbita. Auto-provisioned subdomains for every project." },
@@ -92,7 +92,7 @@ export default function HomePage() {
             What will you build?
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-text-secondary">
-            Describe your idea. Odeta builds it with Grit commands — not hallucinated code.
+            Describe your idea. Odeta builds it with component commands — not hallucinated code.
           </p>
 
           {/* Big prompt input */}

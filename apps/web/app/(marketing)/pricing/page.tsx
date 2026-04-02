@@ -63,7 +63,7 @@ const creditCosts = [
   { action: "AI chat message", cost: 1 },
   { action: "Project generation (plan approval)", cost: 5 },
   { action: "JB component command install", cost: 2 },
-  { action: "Grit resource generation", cost: 2 },
+  { action: "Component installation", cost: 2 },
 ];
 
 export default function PricingPage() {

@@ -99,7 +99,7 @@ export default function DashboardPage() {
           <FolderOpen className="mx-auto h-10 w-10 text-text-tertiary" />
           <h3 className="mt-4 text-lg font-semibold text-foreground">No projects yet</h3>
           <p className="mt-2 text-sm text-text-secondary max-w-sm mx-auto">
-            Describe what you want to build and Odeta will create it using Grit + JB commands.
+            Describe what you want to build and Odeta will create it using battle-tested component commands.
           </p>
           <Link
             href="/dashboard/new"

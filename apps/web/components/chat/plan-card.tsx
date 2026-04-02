@@ -3,8 +3,8 @@
 import { Zap, Package, FileCode, ListChecks } from "lucide-react";
 import type { PlanItem } from "./message-parser";
 
-const ITEM_CONFIG = {
-  grit: { icon: Zap, bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", badge: "grit" },
+const ITEM_CONFIG: Record<string, { icon: typeof Zap; bg: string; border: string; text: string; badge: string }> = {
+  scaffold: { icon: Zap, bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", badge: "scaffold" },
   jb: { icon: Package, bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", badge: "JB" },
   code: { icon: FileCode, bg: "bg-purple-50", border: "border-purple-200", text: "text-purple-700", badge: "code" },
 };

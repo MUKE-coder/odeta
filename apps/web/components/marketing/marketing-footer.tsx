@@ -7,7 +7,7 @@ const footerLinks = {
     { href: "/pricing", label: "Pricing" },
   ],
   Resources: [
-    { href: "https://gritframework.dev", label: "Grit Framework" },
+    { href: "https://nextjs.org", label: "Next.js" },
     { href: "https://jb.desishub.com", label: "JB Components" },
   ],
   Company: [
