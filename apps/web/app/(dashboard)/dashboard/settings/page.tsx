@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
-import { getAccessToken } from "@/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,16 +32,9 @@ export default function SettingsPage() {
   async function handleSaveProfile() {
     setSaving(true);
     try {
-      await fetch(`${API_URL}/api/profile`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getAccessToken()}`,
-        },
-        body: JSON.stringify({
-          first_name: firstName,
-          last_name: lastName,
-        }),
+      await apiClient.put("/api/profile", {
+        first_name: firstName,
+        last_name: lastName,
       });
       await refetch();
       toast.success("Profile updated");
@@ -57,10 +49,7 @@ export default function SettingsPage() {
     if (!confirm("Are you sure you want to delete your account? This action cannot be undone.")) return;
     setDeleting(true);
     try {
-      await fetch(`${API_URL}/api/profile`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${getAccessToken()}` },
-      });
+      await apiClient.delete("/api/profile");
       toast.success("Account deleted");
       window.location.href = "/";
     } catch {

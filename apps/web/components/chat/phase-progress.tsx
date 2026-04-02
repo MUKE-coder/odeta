@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAccessToken } from "@/lib/auth-client";
+import Cookies from "js-cookie";
 import { cn } from "@/lib/utils";
 import { CheckCircle, Circle, Loader2, XCircle } from "lucide-react";
 
@@ -30,7 +30,7 @@ export function PhaseProgress({ projectId }: { projectId: number }) {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const token = getAccessToken();
+    const token = Cookies.get("access_token");
     if (!token) return;
 
     const eventSource = new EventSource(

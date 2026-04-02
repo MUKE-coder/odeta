@@ -1,96 +1,38 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: ["class", "class"],
+  darkMode: "class",
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
     "./lib/**/*.{ts,tsx}",
   ],
   theme: {
-  	extend: {
-  		colors: {
-  			// shadcn/ui token colors (use oklch vars from globals.css)
-  			background: 'var(--background)',
-  			foreground: 'var(--foreground)',
-  			card: {
-  				DEFAULT: 'var(--card)',
-  				foreground: 'var(--card-foreground)'
-  			},
-  			popover: {
-  				DEFAULT: 'var(--popover)',
-  				foreground: 'var(--popover-foreground)'
-  			},
-  			primary: {
-  				DEFAULT: 'var(--primary)',
-  				foreground: 'var(--primary-foreground)'
-  			},
-  			secondary: {
-  				DEFAULT: 'var(--secondary)',
-  				foreground: 'var(--secondary-foreground)'
-  			},
-  			muted: {
-  				DEFAULT: 'var(--muted)',
-  				foreground: 'var(--muted-foreground)'
-  			},
-  			accent: {
-  				DEFAULT: 'var(--accent)',
-  				foreground: 'var(--accent-foreground)'
-  			},
-  			destructive: {
-  				DEFAULT: 'var(--destructive)',
-  				foreground: 'var(--destructive-foreground, oklch(0.985 0 0))'
-  			},
-  			border: 'var(--border)',
-  			input: 'var(--input)',
-  			ring: 'var(--ring)',
-  			chart: {
-  				'1': 'var(--chart-1)',
-  				'2': 'var(--chart-2)',
-  				'3': 'var(--chart-3)',
-  				'4': 'var(--chart-4)',
-  				'5': 'var(--chart-5)'
-  			},
-  			// Custom Odeta colors
-  			'bg-secondary': 'var(--bg-secondary)',
-  			'bg-tertiary': 'var(--bg-tertiary)',
-  			'bg-elevated': 'var(--bg-elevated)',
-  			'bg-hover': 'var(--bg-hover)',
-  			'text-secondary': 'var(--text-secondary)',
-  			'text-muted': 'var(--text-muted)',
-  			success: 'var(--success)',
-  			danger: 'var(--danger)',
-  			warning: 'var(--warning)',
-  			info: 'var(--info)',
-  			sidebar: {
-  				DEFAULT: 'hsl(var(--sidebar-background))',
-  				foreground: 'hsl(var(--sidebar-foreground))',
-  				primary: 'hsl(var(--sidebar-primary))',
-  				'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-  				accent: 'hsl(var(--sidebar-accent))',
-  				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-  				border: 'hsl(var(--sidebar-border))',
-  				ring: 'hsl(var(--sidebar-ring))'
-  			}
-  		},
-  		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
-  		},
-  		fontFamily: {
-  			sans: [
-  				'var(--font-onest)',
-  				'system-ui',
-  				'sans-serif'
-  			],
-  			mono: [
-  				'var(--font-jetbrains-mono)',
-  				'ui-monospace',
-  				'monospace'
-  			]
-  		}
-  	}
+    extend: {
+      colors: {
+        background: "var(--bg-primary)",
+        "bg-secondary": "var(--bg-secondary)",
+        "bg-tertiary": "var(--bg-tertiary)",
+        "bg-elevated": "var(--bg-elevated)",
+        "bg-hover": "var(--bg-hover)",
+        border: "var(--border)",
+        foreground: "var(--text-primary)",
+        "text-secondary": "var(--text-secondary)",
+        "text-muted": "var(--text-muted)",
+        accent: {
+          DEFAULT: "var(--accent)",
+          hover: "var(--accent-hover)",
+        },
+        success: "var(--success)",
+        danger: "var(--danger)",
+        warning: "var(--warning)",
+        info: "var(--info)",
+      },
+      fontFamily: {
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+      },
+    },
   },
   plugins: [require("tailwindcss-animate")],
 };

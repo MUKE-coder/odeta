@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { getAccessToken } from "@/lib/auth-client";
+import Cookies from "js-cookie";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -45,7 +45,7 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
 
       try {
         abortRef.current = new AbortController();
-        const token = getAccessToken();
+        const token = Cookies.get("access_token");
 
         const response = await fetch(`${API_URL}/api/chat`, {
           method: "POST",

@@ -5,15 +5,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { CreditCounter } from "./credit-counter";
 import { useAuth } from "@/hooks/use-auth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   FolderOpen,
   Plus,
@@ -25,7 +16,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { href: "/dashboard", label: "Projects", icon: FolderOpen },
@@ -46,27 +36,28 @@ export function DashboardSidebar() {
   return (
     <aside
       className={cn(
-        "flex flex-col border-r border-border/40 bg-card transition-all duration-200",
+        "flex flex-col border-r border-border bg-bg-secondary transition-all duration-200",
         collapsed ? "w-16" : "w-64"
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center justify-between px-4 border-b border-border/40">
+      <div className="flex h-16 items-center justify-between px-4 border-b border-border">
         {!collapsed && (
-          <Link href="/dashboard" className="flex items-center gap-2 font-bold">
-            <Zap className="h-5 w-5 text-primary" />
+          <Link href="/dashboard" className="flex items-center gap-2 font-bold text-foreground">
+            <Zap className="h-5 w-5 text-accent" />
             <span>Odeta</span>
           </Link>
         )}
         {collapsed && (
           <Link href="/dashboard" className="mx-auto">
-            <Zap className="h-5 w-5 text-primary" />
+            <Zap className="h-5 w-5 text-accent" />
           </Link>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("h-7 w-7 shrink-0", collapsed && "hidden md:flex mx-auto")}
+        <button
+          className={cn(
+            "h-7 w-7 shrink-0 rounded-md flex items-center justify-center text-text-muted hover:bg-bg-hover hover:text-foreground transition-colors",
+            collapsed && "hidden md:flex mx-auto"
+          )}
           onClick={() => setCollapsed(!collapsed)}
         >
           {collapsed ? (
@@ -74,7 +65,7 @@ export function DashboardSidebar() {
           ) : (
             <ChevronLeft className="h-4 w-4" />
           )}
-        </Button>
+        </button>
       </div>
 
       {/* Navigation */}
@@ -92,8 +83,8 @@ export function DashboardSidebar() {
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                 isActive
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? "bg-accent/10 text-accent font-medium"
+                  : "text-text-secondary hover:bg-bg-hover hover:text-foreground",
                 collapsed && "justify-center px-2"
               )}
               title={collapsed ? item.label : undefined}
@@ -105,16 +96,11 @@ export function DashboardSidebar() {
         })}
       </nav>
 
-      {/* Theme toggle */}
-      <div className={cn("px-3 py-2 border-t border-border/40 flex", collapsed ? "justify-center" : "justify-end")}>
-        <ThemeToggle />
-      </div>
-
       {/* Credits */}
-      <div className={cn("px-3 py-3 border-t border-border/40", collapsed && "px-2")}>
+      <div className={cn("px-3 py-3 border-t border-border", collapsed && "px-2")}>
         {!collapsed ? (
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Credits</span>
+            <span className="text-text-muted">Credits</span>
             <CreditCounter />
           </div>
         ) : (
@@ -123,51 +109,36 @@ export function DashboardSidebar() {
       </div>
 
       {/* User */}
-      <div className="px-2 py-3 border-t border-border/40">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+      <div className="px-3 py-3 border-t border-border">
+        <div
+          className={cn(
+            "flex items-center gap-3 text-sm",
+            collapsed && "justify-center"
+          )}
+        >
+          <div className="h-8 w-8 rounded-full bg-accent/20 flex items-center justify-center text-accent text-xs font-medium shrink-0">
+            {initials}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="truncate font-medium text-foreground text-xs">
+                {user?.first_name} {user?.last_name}
+              </p>
+              <p className="truncate text-xs text-text-muted">
+                {user?.email}
+              </p>
+            </div>
+          )}
+          {!collapsed && (
             <button
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-muted transition-colors",
-                collapsed && "justify-center"
-              )}
+              onClick={logout}
+              className="text-text-muted hover:text-danger transition-colors"
+              title="Sign out"
             >
-              <Avatar className="h-7 w-7">
-                <AvatarImage src={user?.avatar} />
-                <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-              </Avatar>
-              {!collapsed && (
-                <div className="flex-1 text-left min-w-0">
-                  <p className="truncate font-medium text-xs">
-                    {user?.first_name} {user?.last_name}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {user?.email}
-                  </p>
-                </div>
-              )}
+              <LogOut className="h-4 w-4" />
             </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/settings">
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/billing">
-                <CreditCard className="mr-2 h-4 w-4" />
-                Billing
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout} className="text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+        </div>
       </div>
     </aside>
   );

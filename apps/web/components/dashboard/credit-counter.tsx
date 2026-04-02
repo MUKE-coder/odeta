@@ -5,14 +5,13 @@ import { apiClient } from "@/lib/api-client";
 import { Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface CreditsResponse {
-  data: { credits: number };
-}
-
 export function CreditCounter({ className }: { className?: string }) {
-  const { data } = useQuery<CreditsResponse>({
+  const { data } = useQuery({
     queryKey: ["credits"],
-    queryFn: () => apiClient.get("/api/me/credits"),
+    queryFn: async () => {
+      const { data } = await apiClient.get("/api/me/credits");
+      return data;
+    },
     refetchInterval: 30000,
   });
 
@@ -20,10 +19,10 @@ export function CreditCounter({ className }: { className?: string }) {
 
   const colorClass =
     credits > 50
-      ? "text-green-500"
+      ? "text-success"
       : credits > 10
-        ? "text-yellow-500"
-        : "text-red-500";
+        ? "text-warning"
+        : "text-danger";
 
   return (
     <div className={cn("flex items-center gap-1.5 text-sm", className)}>
