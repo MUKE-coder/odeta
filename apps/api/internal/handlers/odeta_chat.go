@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -145,6 +146,24 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
+	c.Header("X-Content-Type-Options", "nosniff")
+
+	// Keepalive — prevent proxy/client timeouts during long operations
+	keepaliveDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				c.Writer.WriteString(": keepalive\n\n")
+				c.Writer.Flush()
+			case <-keepaliveDone:
+				return
+			}
+		}
+	}()
+	defer close(keepaliveDone)
 
 	var fullResponse strings.Builder
 
@@ -187,7 +206,7 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	c.Writer.Flush()
 
 	// ── Execute commands found in the AI response ──
-	commands := executor.ExtractCommands(fullResponse.String())
+	commands := executor.ExtractAllCommands(fullResponse.String())
 	projectIDStr := fmt.Sprintf("%d", req.GetProjectID())
 
 	if len(commands) > 0 {
