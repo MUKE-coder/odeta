@@ -327,17 +327,13 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		blogs.GET("/:slug", blogHandler.GetBySlug)
 	}
 
-	// Public auth routes
+	// Public auth routes — Google OAuth only (email/password disabled)
 	auth := r.Group("/api/auth")
 	{
-		auth.POST("/register", authHandler.Register)
-		auth.POST("/login", authHandler.Login)
 		auth.POST("/refresh", authHandler.Refresh)
-		auth.POST("/forgot-password", authHandler.ForgotPassword)
-		auth.POST("/reset-password", authHandler.ResetPassword)
 	}
 
-	// OAuth2 social login
+	// OAuth2 social login (Google)
 	oauth := auth.Group("/oauth")
 	{
 		oauth.GET("/:provider", authHandler.OAuthBegin)
