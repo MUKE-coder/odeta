@@ -58,6 +58,14 @@ export function StyleStep({ onSelect }: { onSelect: (themeId: string) => void })
                 : "border-transparent hover:border-gray-300 hover:shadow-md"
             )}
           >
+            {/* Brand badge */}
+            {theme.category === "brand" && (
+              <div className="absolute top-2 left-2 z-10">
+                <span className="text-[8px] font-bold uppercase tracking-wider bg-black/30 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">
+                  Brand
+                </span>
+              </div>
+            )}
             {/* Mini app preview */}
             <div className="h-24 p-2.5" style={{ backgroundColor: theme.preview.bg }}>
               <div

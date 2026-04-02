@@ -10,10 +10,11 @@ import { UserMessage } from "@/components/chat/user-message";
 import { MessageSkeleton } from "@/components/chat/message-skeleton";
 import { HistorySkeleton } from "@/components/chat/history-skeleton";
 import { DesignPhase, type DesignChoices } from "@/components/chat/design-phase";
+import { EnvTab } from "@/components/chat/env-tab";
 import { THEMES } from "@/lib/themes";
 import { loadDraft, saveDraft, clearDraft } from "@/lib/chat-draft";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowUp, Code, Eye, GripVertical, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowUp, Code, Eye, GripVertical, Key, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function ChatPage() {
@@ -22,7 +23,7 @@ export default function ChatPage() {
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState(() => loadDraft(projectId));
-  const [rightTab, setRightTab] = useState<"preview" | "code">("preview");
+  const [rightTab, setRightTab] = useState<"preview" | "code" | "env">("preview");
   const [splitPos, setSplitPos] = useState(45);
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -230,7 +231,7 @@ export default function ChatPage() {
         {/* Right: Preview/Code */}
         <div className="hidden flex-1 flex-col lg:flex">
           <div className="flex border-b bg-white">
-            {(["preview", "code"] as const).map((tab) => (
+            {(["preview", "code", "env"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setRightTab(tab)}
@@ -242,10 +243,14 @@ export default function ChatPage() {
               >
                 {tab === "preview" && <Eye className="h-3.5 w-3.5" />}
                 {tab === "code" && <Code className="h-3.5 w-3.5" />}
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === "env" && <Key className="h-3.5 w-3.5" />}
+                {tab === "env" ? "Env" : tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
             ))}
           </div>
+          {rightTab === "env" ? (
+            <EnvTab projectId={projectId} />
+          ) : (
           <div className="flex flex-1 items-center justify-center bg-surface">
             <div className="text-center px-8">
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white border">
@@ -262,6 +267,7 @@ export default function ChatPage() {
               </p>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { getPendingPrompt, clearPendingPrompt } from "@/lib/pending-prompt";
+import { PresetPrompts } from "@/components/new-project/preset-prompts";
 import { toast } from "sonner";
 import { ArrowRight, Loader2 } from "lucide-react";
 
@@ -89,8 +90,20 @@ export default function NewProjectPage() {
           Odeta builds real full-stack apps using Grit Framework + battle-tested commands.
         </p>
 
+        {/* Preset prompts — shown when empty */}
+        {!prompt.trim() && (
+          <div className="mt-8">
+            <PresetPrompts
+              onSelect={(p, t) => {
+                setPrompt(p);
+                setType(t);
+              }}
+            />
+          </div>
+        )}
+
         {/* Prompt input */}
-        <div className="mt-8">
+        <div className={prompt.trim() ? "mt-8" : "mt-2"}>
           <div className="rounded-2xl border border-border-strong bg-white p-1 shadow-sm">
             <div className="flex items-end">
               <textarea

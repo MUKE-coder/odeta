@@ -41,10 +41,28 @@ export const THEMES: Theme[] = [
   { id: "sage", name: "Sage", category: "corporate", description: "Muted greens and warm grays.", preview: { bg: "#f8faf8", surface: "#ffffff", border: "#d1d5d1", text: "#1a2414", accent: "#16783a", radius: "8px" } },
   { id: "slate-pro", name: "Slate Pro", category: "corporate", description: "Cool grays with purple accents.", preview: { bg: "#f8fafc", surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", accent: "#7c3aed", radius: "12px" } },
   { id: "coral", name: "Coral", category: "playful", description: "Warm coral tones. Friendly and inviting.", preview: { bg: "#fff5f5", surface: "#fed7d7", border: "#feb2b2", text: "#63171b", accent: "#e53e3e", radius: "12px" } },
+  // Brand Inspired
+  { id: "vercel", name: "Vercel", category: "brand", description: "Pure black and white. Razor-sharp edges, maximum whitespace.", preview: { bg: "#ffffff", surface: "#fafafa", border: "#e5e5e5", text: "#000000", accent: "#000000", radius: "4px" } },
+  { id: "supabase", name: "Supabase", category: "brand", description: "Emerald green on deep dark. Open source energy.", preview: { bg: "#1c1c1c", surface: "#2a2a2a", border: "#3a3a3a", text: "#f8f9fa", accent: "#3ecf8e", radius: "8px" } },
+  { id: "tailwind", name: "Tailwind CSS", category: "brand", description: "Sky blue meets slate. Utility-first, clean, readable.", preview: { bg: "#f8fafc", surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", accent: "#0ea5e9", radius: "8px" } },
+  { id: "openai", name: "OpenAI", category: "brand", description: "Neutral white, generous space. AI clarity.", preview: { bg: "#ffffff", surface: "#f9f9f9", border: "#e5e5e5", text: "#0d0d0d", accent: "#10a37f", radius: "12px" } },
+  { id: "mintlify", name: "Mintlify", category: "brand", description: "Documentation-grade clarity. Mint accents on white.", preview: { bg: "#ffffff", surface: "#f9fafb", border: "#e5e7eb", text: "#111827", accent: "#0ea5e9", radius: "12px" } },
+  { id: "prisma", name: "Prisma", category: "brand", description: "Teal on dark slate. Database precision.", preview: { bg: "#1a202c", surface: "#2d3748", border: "#4a5568", text: "#f7fafc", accent: "#16bdca", radius: "8px" } },
+  { id: "clerk", name: "Clerk", category: "brand", description: "Violet-purple on white. Auth-grade trust.", preview: { bg: "#ffffff", surface: "#fafafa", border: "#e4e4e7", text: "#09090b", accent: "#6c47ff", radius: "16px" } },
+  { id: "elevenlabs", name: "ElevenLabs", category: "brand", description: "Pure black with yellow voice-energy accents.", preview: { bg: "#000000", surface: "#111111", border: "#222222", text: "#ffffff", accent: "#f5c842", radius: "8px" } },
+  { id: "resend", name: "Resend", category: "brand", description: "Black and white, surgical whitespace. Email clarity.", preview: { bg: "#ffffff", surface: "#f9f9f9", border: "#ebebeb", text: "#000000", accent: "#000000", radius: "6px" } },
+  { id: "trigger", name: "Trigger.dev", category: "brand", description: "Deep violet on dark. Focused intensity.", preview: { bg: "#0d0d14", surface: "#16161f", border: "#2a2a3d", text: "#e8e8ff", accent: "#818cf8", radius: "12px" } },
+  { id: "nuxt", name: "Nuxt", category: "brand", description: "Vue green on clean white. Fast, open, friendly.", preview: { bg: "#ffffff", surface: "#f8faf9", border: "#e2e8e4", text: "#18181b", accent: "#00dc82", radius: "12px" } },
+  { id: "cloudflare", name: "Cloudflare", category: "brand", description: "Orange energy. Performance at the edge.", preview: { bg: "#f6f6f7", surface: "#ffffff", border: "#e2e2e4", text: "#1d1d1f", accent: "#f48120", radius: "8px" } },
+  { id: "gemini", name: "Gemini", category: "brand", description: "Google's multimodal blue. Fluid, intelligence-forward.", preview: { bg: "#ffffff", surface: "#f8f9ff", border: "#e3e8f8", text: "#1a1a2e", accent: "#4285f4", radius: "16px" } },
+  { id: "stripe", name: "Stripe", category: "brand", description: "Indigo on deep navy. Financial infrastructure.", preview: { bg: "#f6f9fc", surface: "#ffffff", border: "#e6ebf1", text: "#0a2540", accent: "#635bff", radius: "8px" } },
+  { id: "firecrawl", name: "Firecrawl", category: "brand", description: "Flame orange on near-black. Hot, fast, relentless.", preview: { bg: "#0c0c0c", surface: "#161616", border: "#2a2a2a", text: "#f5f5f5", accent: "#ff6b35", radius: "8px" } },
+  { id: "browserbase", name: "Browserbase", category: "brand", description: "Dark browser chrome. Automation precision.", preview: { bg: "#09090b", surface: "#141416", border: "#27272a", text: "#fafafa", accent: "#3b82f6", radius: "8px" } },
 ];
 
 export const THEME_CATEGORIES = [
   { id: "all", label: "All" },
+  { id: "brand", label: "Brand Inspired" },
   { id: "minimal", label: "Minimal" },
   { id: "bold", label: "Bold & Dark" },
   { id: "glass", label: "Glass" },
