@@ -1,70 +1,46 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { useAuth } from "@/hooks/use-auth";
-import { useOdetaChat } from "@/hooks/use-chat";
-import { ChatMessageBubble, TypingIndicator, CreditNotice } from "@/components/chat/chat-message";
-import { ChatInput } from "@/components/chat/chat-input";
-import { PhaseProgress } from "@/components/chat/phase-progress";
-import { UpgradePrompt } from "@/components/chat/upgrade-prompt";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useOdetaChat, type ChatMessage } from "@/hooks/use-chat";
+import { parseAIMessage } from "@/components/chat/message-parser";
+import { QuestionCard } from "@/components/chat/question-card";
+import { CommandCard } from "@/components/chat/command-card";
 import { toast } from "sonner";
-import { ArrowLeft, Coins, FileCode, Layers, Monitor, Rocket } from "lucide-react";
-import { DeployPanel } from "@/components/chat/deploy-panel";
+import { ArrowLeft, ArrowRight, Code, Eye, FolderTree, Loader2 } from "lucide-react";
 import Link from "next/link";
-
-interface Project {
-  id: number;
-  name: string;
-  slug: string;
-  type: string;
-  status: string;
-  subdomain?: string;
-  github_repo_url?: string;
-}
 
 export default function ChatPage() {
   const params = useParams();
-  const projectId = Number(params.projectId);
-  const { user, refetch: refetchUser } = useAuth();
+  const projectId = params.projectId as string;
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [lastCreditInfo, setLastCreditInfo] = useState<{
-    used: number;
-    remaining: number;
-  } | null>(null);
+  const [input, setInput] = useState("");
+  const [rightTab, setRightTab] = useState<"preview" | "code" | "files">("preview");
 
-  // Fetch project
-  const { data: projectData, isLoading: projectLoading } = useQuery<{
-    data: Project;
-  }>({
+  const { data: projectData } = useQuery({
     queryKey: ["project", projectId],
-    queryFn: async () => { const { data } = await apiClient.get(`/api/projects/${projectId}`); return data; },
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/api/projects/${projectId}`);
+      return data;
+    },
     enabled: !!projectId,
   });
 
   const project = projectData?.data;
 
-  // Chat hook
   const {
     messages,
-    sendMessage,
     isStreaming,
-    stopStreaming,
+    sendMessage,
   } = useOdetaChat({
     projectId,
-    onCreditsUpdate: (used, remaining) => {
-      setLastCreditInfo({ used, remaining });
+    onCreditsUpdate: () => {
       queryClient.invalidateQueries({ queryKey: ["credits"] });
-      refetchUser();
     },
-    onError: (error) => {
+    onError: (error: string) => {
       toast.error(error);
     },
   });
@@ -72,181 +48,184 @@ export default function ChatPage() {
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isStreaming]);
+  }, [messages]);
 
-  if (projectLoading) {
-    return (
-      <div className="flex h-[calc(100vh-4rem)] gap-4">
-        <Skeleton className="flex-1 rounded-xl" />
-        <Skeleton className="w-96 rounded-xl" />
-      </div>
-    );
+  function handleSend() {
+    if (!input.trim() || isStreaming) return;
+    sendMessage(input.trim());
+    setInput("");
   }
 
-  if (!project) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-        <div className="text-center">
-          <p className="text-muted-foreground">Project not found</p>
-          <Button variant="outline" className="mt-4" asChild>
-            <Link href="/dashboard">Back to Dashboard</Link>
-          </Button>
-        </div>
-      </div>
-    );
+  function handleQuestionSelect(option: string) {
+    sendMessage(option);
   }
-
-  const hasNoCredits = (user?.credits ?? 0) <= 0;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] gap-4 -m-6 md:-m-8 p-4">
-      {/* Left panel — Chat */}
-      <div className="flex flex-1 flex-col rounded-xl border border-border/60 bg-card overflow-hidden">
-        {/* Chat header */}
-        <div className="flex items-center justify-between border-b border-border/40 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-              <Link href="/dashboard">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <div>
-              <h2 className="font-semibold text-sm">{project.name}</h2>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Badge variant="outline" className="text-xs py-0">
-                  {project.type === "WEB_APP" ? "Web App" : "Website"}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="text-xs py-0 capitalize"
-                >
-                  {project.status.toLowerCase()}
-                </Badge>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Coins className="h-3.5 w-3.5" />
-            <span>{user?.credits ?? 0} credits</span>
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center max-w-md">
-                <h3 className="font-semibold text-lg">
-                  Let&apos;s build {project.name}
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Describe your project in detail. I&apos;ll ask clarifying
-                  questions, then create a build plan using Grit + JB commands.
-                </p>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Each message costs 1 credit
-                </p>
-              </div>
-            </div>
-          )}
-
-          {messages.map((message) => (
-            <ChatMessageBubble key={message.id} message={message} />
-          ))}
-
-          {isStreaming && messages[messages.length - 1]?.content === "" && (
-            <TypingIndicator />
-          )}
-
-          {lastCreditInfo && !isStreaming && (
-            <CreditNotice
-              used={lastCreditInfo.used}
-              remaining={lastCreditInfo.remaining}
-            />
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div className="border-t border-border/40 px-4 py-3">
-          {hasNoCredits ? (
-            <UpgradePrompt credits={0} plan={user?.plan || "free"} />
-          ) : (
-            <ChatInput
-              onSend={sendMessage}
-              isStreaming={isStreaming}
-              onStop={stopStreaming}
-              disabled={hasNoCredits}
-              placeholder={
-                messages.length === 0
-                  ? "Describe what you want to build..."
-                  : "Ask a follow-up question or request changes..."
-              }
-            />
+    <div className="-m-6 md:-m-8 flex h-screen flex-col">
+      {/* Header */}
+      <div className="flex h-12 items-center justify-between border-b bg-white px-4">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard" className="text-text-tertiary hover:text-foreground transition-colors">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <span className="font-medium text-sm text-foreground truncate max-w-[200px]">
+            {project?.name || "Project"}
+          </span>
+          {project?.status && (
+            <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] text-text-secondary uppercase tracking-wider">
+              {project.status}
+            </span>
           )}
         </div>
+        <button
+          disabled
+          className="rounded-lg border bg-surface px-3 py-1.5 text-xs text-text-tertiary cursor-not-allowed"
+          title="Publish when your app is ready"
+        >
+          Publish
+        </button>
       </div>
 
-      {/* Right panel — Build Output */}
-      <div className="hidden lg:flex w-96 flex-col rounded-xl border border-border/60 bg-card overflow-hidden">
-        <Tabs defaultValue="phases" className="flex flex-col h-full">
-          <TabsList className="w-full justify-start rounded-none border-b border-border/40 bg-transparent px-2 h-11">
-            <TabsTrigger value="phases" className="text-xs gap-1.5">
-              <Layers className="h-3.5 w-3.5" />
-              Phases
-            </TabsTrigger>
-            <TabsTrigger value="code" className="text-xs gap-1.5">
-              <FileCode className="h-3.5 w-3.5" />
-              Code
-            </TabsTrigger>
-            <TabsTrigger value="deploy" className="text-xs gap-1.5">
-              <Rocket className="h-3.5 w-3.5" />
-              Deploy
-            </TabsTrigger>
-            <TabsTrigger value="preview" className="text-xs gap-1.5">
-              <Monitor className="h-3.5 w-3.5" />
-              Preview
-            </TabsTrigger>
-          </TabsList>
+      {/* Two panels */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left: Chat */}
+        <div className="flex w-full flex-col border-r lg:w-[420px]">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            {messages.length === 0 && !isStreaming && (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-sm text-text-tertiary text-center">
+                  Describe your project and I&apos;ll help you build it.
+                </p>
+              </div>
+            )}
 
-          <TabsContent value="phases" className="flex-1 overflow-y-auto m-0">
-            <PhaseProgress projectId={projectId} />
-          </TabsContent>
+            {messages.map((msg: ChatMessage) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                {msg.role === "user" ? (
+                  <div className="max-w-[85%] rounded-2xl rounded-br-md bg-accent px-4 py-2.5 text-sm text-white">
+                    {msg.content}
+                  </div>
+                ) : (
+                  <div className="max-w-[90%] space-y-2">
+                    {parseAIMessage(msg.content).map((block, i) => {
+                      if (block.type === "question") {
+                        return (
+                          <QuestionCard
+                            key={i}
+                            text={block.content}
+                            options={block.options || []}
+                            onSelect={handleQuestionSelect}
+                          />
+                        );
+                      }
+                      if (block.type === "command" || block.type === "jb-command") {
+                        return (
+                          <CommandCard
+                            key={i}
+                            command={block.content}
+                            type={block.type}
+                          />
+                        );
+                      }
+                      return (
+                        <div
+                          key={i}
+                          className="rounded-2xl rounded-bl-md bg-surface px-4 py-2.5 text-sm text-foreground"
+                        >
+                          {block.content}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
 
-          <TabsContent value="code" className="flex-1 overflow-y-auto m-0 p-4">
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-              Code output will appear here during generation
-            </div>
-          </TabsContent>
-
-          <TabsContent value="deploy" className="flex-1 overflow-y-auto m-0">
-            <DeployPanel
-              projectId={projectId}
-              projectSlug={project.slug}
-              projectStatus={project.status}
-              githubRepoUrl={project.github_repo_url}
-            />
-          </TabsContent>
-
-          <TabsContent value="preview" className="flex-1 overflow-y-auto m-0 p-4">
-            {project.subdomain ? (
-              <iframe
-                src={`https://${project.subdomain}.odeta.app`}
-                className="w-full h-full rounded-lg border border-border/40"
-                title="Live Preview"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-sm text-muted-foreground text-center">
-                <div>
-                  <Monitor className="mx-auto h-8 w-8 text-muted-foreground/50 mb-3" />
-                  <p>Deploy to preview your app</p>
-                  <p className="text-xs mt-1">Available on Starter and Pro plans</p>
+            {isStreaming && (
+              <div className="flex justify-start">
+                <div className="rounded-2xl rounded-bl-md bg-surface px-4 py-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-text-tertiary" />
                 </div>
               </div>
             )}
-          </TabsContent>
-        </Tabs>
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="border-t bg-white p-3">
+            <div className="flex items-end rounded-xl border bg-white">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Make, test, iterate..."
+                rows={1}
+                className="flex-1 resize-none border-0 bg-transparent px-3 py-2.5 text-sm focus:outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                disabled={isStreaming}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || isStreaming}
+                className="m-1.5 flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-30 transition-colors"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <p className="mt-1.5 text-center text-[10px] text-text-tertiary">
+              1 credit per message
+            </p>
+          </div>
+        </div>
+
+        {/* Right: Preview/Code/Files */}
+        <div className="hidden flex-1 flex-col lg:flex">
+          {/* Tabs */}
+          <div className="flex border-b bg-white">
+            {(["preview", "code", "files"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setRightTab(tab)}
+                className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-xs font-medium transition-colors ${
+                  rightTab === tab
+                    ? "border-accent text-accent"
+                    : "border-transparent text-text-secondary hover:text-foreground"
+                }`}
+              >
+                {tab === "preview" && <Eye className="h-3.5 w-3.5" />}
+                {tab === "code" && <Code className="h-3.5 w-3.5" />}
+                {tab === "files" && <FolderTree className="h-3.5 w-3.5" />}
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Content */}
+          <div className="flex flex-1 items-center justify-center bg-surface">
+            <div className="text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white border">
+                {rightTab === "preview" && <Eye className="h-5 w-5 text-text-tertiary" />}
+                {rightTab === "code" && <Code className="h-5 w-5 text-text-tertiary" />}
+                {rightTab === "files" && <FolderTree className="h-5 w-5 text-text-tertiary" />}
+              </div>
+              <p className="text-sm text-text-secondary">
+                {rightTab === "preview"
+                  ? "Your app will appear here as it's built"
+                  : rightTab === "code"
+                    ? "Generated code will appear here"
+                    : "Project files will appear here"}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: "class",
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -10,26 +9,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--bg-primary)",
-        "bg-secondary": "var(--bg-secondary)",
-        "bg-tertiary": "var(--bg-tertiary)",
-        "bg-elevated": "var(--bg-elevated)",
-        "bg-hover": "var(--bg-hover)",
+        background: "var(--background)",
+        surface: "var(--surface)",
+        "surface-hover": "var(--surface-hover)",
         border: "var(--border)",
+        "border-strong": "var(--border-strong)",
         foreground: "var(--text-primary)",
         "text-secondary": "var(--text-secondary)",
-        "text-muted": "var(--text-muted)",
+        "text-tertiary": "var(--text-tertiary)",
         accent: {
           DEFAULT: "var(--accent)",
           hover: "var(--accent-hover)",
+          light: "var(--accent-light)",
         },
         success: "var(--success)",
-        danger: "var(--danger)",
         warning: "var(--warning)",
-        info: "var(--info)",
+        danger: "var(--danger)",
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
     },

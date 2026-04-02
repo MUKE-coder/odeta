@@ -14,7 +14,7 @@ export interface ChatMessage {
 }
 
 interface UseChatOptions {
-  projectId: number;
+  projectId: string | number;
   onCreditsUpdate?: (used: number, remaining: number) => void;
   onError?: (error: string) => void;
 }

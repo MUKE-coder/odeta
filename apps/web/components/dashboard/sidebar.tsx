@@ -2,142 +2,150 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { CreditCounter } from "./credit-counter";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  FolderOpen,
-  Plus,
-  Settings,
-  CreditCard,
-  Zap,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { useState } from "react";
+import { apiClient } from "@/lib/api-client";
+import { Plus, FolderOpen, LogOut, Settings, CreditCard, Zap } from "lucide-react";
 
-const navItems = [
-  { href: "/dashboard", label: "Projects", icon: FolderOpen },
-  { href: "/dashboard/new", label: "New Project", icon: Plus },
-  { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
-];
+interface Project {
+  id: number;
+  name: string;
+  type: string;
+  status: string;
+}
 
 export function DashboardSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+
+  const { data: projectsData } = useQuery({
+    queryKey: ["sidebar-projects"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/api/projects?page_size=20&sort_by=updated_at&sort_order=desc");
+      return data;
+    },
+  });
+
+  const projects: Project[] = projectsData?.data || [];
 
   const initials = user
-    ? `${user.first_name?.[0] || ""}${user.last_name?.[0] || ""}`
+    ? `${user.first_name?.[0] || ""}${user.last_name?.[0] || ""}`.toUpperCase()
     : "?";
 
   return (
-    <aside
-      className={cn(
-        "flex flex-col border-r border-border bg-bg-secondary transition-all duration-200",
-        collapsed ? "w-16" : "w-64"
-      )}
-    >
+    <aside className="flex w-64 flex-col border-r bg-white">
       {/* Logo */}
-      <div className="flex h-16 items-center justify-between px-4 border-b border-border">
-        {!collapsed && (
-          <Link href="/dashboard" className="flex items-center gap-2 font-bold text-foreground">
-            <Zap className="h-5 w-5 text-accent" />
-            <span>Odeta</span>
-          </Link>
-        )}
-        {collapsed && (
-          <Link href="/dashboard" className="mx-auto">
-            <Zap className="h-5 w-5 text-accent" />
-          </Link>
-        )}
-        <button
-          className={cn(
-            "h-7 w-7 shrink-0 rounded-md flex items-center justify-center text-text-muted hover:bg-bg-hover hover:text-foreground transition-colors",
-            collapsed && "hidden md:flex mx-auto"
-          )}
-          onClick={() => setCollapsed(!collapsed)}
-        >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
-        </button>
+      <div className="flex h-14 items-center gap-2 border-b px-4">
+        <Zap className="h-5 w-5 text-accent" />
+        <span className="font-bold text-foreground">Odeta</span>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-2 py-4 space-y-1">
-        {navItems.map((item) => {
-          const isActive =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+      {/* New Project button */}
+      <div className="p-3">
+        <Link
+          href="/dashboard/new"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          New Project
+        </Link>
+      </div>
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-accent/10 text-accent font-medium"
-                  : "text-text-secondary hover:bg-bg-hover hover:text-foreground",
-                collapsed && "justify-center px-2"
-              )}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Projects list */}
+      <div className="flex-1 overflow-y-auto px-2">
+        <p className="px-2 py-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">
+          Recent Projects
+        </p>
+        {projects.length === 0 ? (
+          <p className="px-2 py-4 text-xs text-text-tertiary text-center">
+            No projects yet
+          </p>
+        ) : (
+          <div className="space-y-0.5">
+            {projects.map((project) => {
+              const isActive = pathname.includes(`/chat/${project.id}`) || pathname.includes(`/projects/${project.id}`);
+              return (
+                <Link
+                  key={project.id}
+                  href={`/dashboard/chat/${project.id}`}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors",
+                    isActive
+                      ? "bg-accent-light text-accent font-medium"
+                      : "text-text-secondary hover:bg-surface-hover hover:text-foreground"
+                  )}
+                >
+                  <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{project.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-      {/* Credits */}
-      <div className={cn("px-3 py-3 border-t border-border", collapsed && "px-2")}>
-        {!collapsed ? (
+      {/* Bottom section */}
+      <div className="border-t">
+        {/* Navigation links */}
+        <div className="px-2 py-2 space-y-0.5">
+          <Link
+            href="/dashboard/billing"
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors",
+              pathname === "/dashboard/billing"
+                ? "bg-accent-light text-accent font-medium"
+                : "text-text-secondary hover:bg-surface-hover hover:text-foreground"
+            )}
+          >
+            <CreditCard className="h-3.5 w-3.5" />
+            Billing
+          </Link>
+          <Link
+            href="/dashboard/settings"
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors",
+              pathname === "/dashboard/settings"
+                ? "bg-accent-light text-accent font-medium"
+                : "text-text-secondary hover:bg-surface-hover hover:text-foreground"
+            )}
+          >
+            <Settings className="h-3.5 w-3.5" />
+            Settings
+          </Link>
+        </div>
+
+        {/* Credits */}
+        <div className="border-t px-4 py-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-text-muted">Credits</span>
+            <span className="text-text-tertiary">Credits</span>
             <CreditCounter />
           </div>
-        ) : (
-          <CreditCounter className="justify-center" />
-        )}
-      </div>
+        </div>
 
-      {/* User */}
-      <div className="px-3 py-3 border-t border-border">
-        <div
-          className={cn(
-            "flex items-center gap-3 text-sm",
-            collapsed && "justify-center"
-          )}
-        >
-          <div className="h-8 w-8 rounded-full bg-accent/20 flex items-center justify-center text-accent text-xs font-medium shrink-0">
-            {initials}
-          </div>
-          {!collapsed && (
+        {/* User */}
+        <div className="border-t px-3 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-light text-accent text-xs font-medium">
+              {initials}
+            </div>
             <div className="flex-1 min-w-0">
-              <p className="truncate font-medium text-foreground text-xs">
+              <p className="truncate text-xs font-medium text-foreground">
                 {user?.first_name} {user?.last_name}
               </p>
-              <p className="truncate text-xs text-text-muted">
+              <p className="truncate text-xs text-text-tertiary">
                 {user?.email}
               </p>
             </div>
-          )}
-          {!collapsed && (
             <button
               onClick={logout}
-              className="text-text-muted hover:text-danger transition-colors"
+              className="text-text-tertiary hover:text-danger transition-colors"
               title="Sign out"
             >
               <LogOut className="h-4 w-4" />
             </button>
-          )}
+          </div>
         </div>
       </div>
     </aside>

@@ -34,10 +34,10 @@ function CallbackHandler() {
         .get("/api/auth/me")
         .then(({ data }) => {
           queryClient.setQueryData(["me"], data.data);
-          router.push("/dashboard");
+          router.push("/dashboard/new");
         })
         .catch(() => {
-          router.push("/dashboard");
+          router.push("/dashboard/new");
         });
     } else {
       router.push("/auth/sign-in?error=Authentication+failed");

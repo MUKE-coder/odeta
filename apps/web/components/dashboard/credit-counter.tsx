@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function CreditCounter({ className }: { className?: string }) {
@@ -25,11 +24,8 @@ export function CreditCounter({ className }: { className?: string }) {
         : "text-danger";
 
   return (
-    <div className={cn("flex items-center gap-1.5 text-sm", className)}>
-      <Coins className={cn("h-4 w-4", colorClass)} />
-      <span className={cn("font-mono font-medium", colorClass)}>
-        {credits}
-      </span>
-    </div>
+    <span className={cn("text-sm font-mono font-medium", colorClass, className)}>
+      {credits}
+    </span>
   );
 }
