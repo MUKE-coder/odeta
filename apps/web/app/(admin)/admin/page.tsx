@@ -20,7 +20,7 @@ interface StatsResponse {
 export default function AdminDashboardPage() {
   const { data, isLoading } = useQuery<StatsResponse>({
     queryKey: ["admin-stats"],
-    queryFn: () => apiClient.get("/api/admin/stats"),
+    queryFn: async () => { const { data } = await apiClient.get("/api/admin/stats"); return data; },
     refetchInterval: 60000,
   });
 

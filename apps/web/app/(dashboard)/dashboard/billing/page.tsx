@@ -58,7 +58,7 @@ export default function BillingPage() {
 
   const { data: subData } = useQuery<SubscriptionResponse>({
     queryKey: ["subscription"],
-    queryFn: () => apiClient.get("/api/billing/subscription"),
+    queryFn: async () => { const { data } = await apiClient.get("/api/billing/subscription"); return data; },
   });
 
   const subscription = subData?.data;

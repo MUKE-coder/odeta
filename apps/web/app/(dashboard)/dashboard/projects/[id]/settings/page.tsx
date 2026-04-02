@@ -37,7 +37,7 @@ export default function ProjectSettingsPage() {
 
   const { data, isLoading } = useQuery<{ data: Project }>({
     queryKey: ["project", projectId],
-    queryFn: () => apiClient.get(`/api/projects/${projectId}`),
+    queryFn: async () => { const { data } = await apiClient.get(`/api/projects/${projectId}`); return data; },
   });
 
   const project = data?.data;

@@ -47,7 +47,7 @@ export function DeployPanel({
     data: Deployment[];
   }>({
     queryKey: ["deployments", projectId],
-    queryFn: () => apiClient.get(`/api/projects/${projectId}/deployments`),
+    queryFn: async () => { const { data } = await apiClient.get(`/api/projects/${projectId}/deployments`); return data; },
   });
 
   const deployments = deploymentsData?.data || [];

@@ -45,7 +45,7 @@ export default function ChatPage() {
     data: Project;
   }>({
     queryKey: ["project", projectId],
-    queryFn: () => apiClient.get(`/api/projects/${projectId}`),
+    queryFn: async () => { const { data } = await apiClient.get(`/api/projects/${projectId}`); return data; },
     enabled: !!projectId,
   });
 

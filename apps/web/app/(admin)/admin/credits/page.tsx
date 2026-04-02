@@ -41,7 +41,7 @@ export default function AdminCreditsPage() {
 
   const { data, isLoading } = useQuery<CreditLogsResponse>({
     queryKey: ["admin-credit-logs"],
-    queryFn: () => apiClient.get("/api/credit_logs?sort_by=created_at&sort_order=desc&page_size=50"),
+    queryFn: async () => { const { data } = await apiClient.get("/api/credit_logs?sort_by=created_at&sort_order=desc&page_size=50"); return data; },
   });
 
   const logs = data?.data || [];
