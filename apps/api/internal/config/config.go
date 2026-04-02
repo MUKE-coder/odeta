@@ -94,6 +94,9 @@ type Config struct {
 	// External APIs
 	UnsplashAccessKey string
 	GeminiAPIKey      string
+
+	// Brave Search (for feature discovery)
+	BraveSearchAPIKey string
 }
 
 // Load reads configuration from environment variables.
@@ -162,6 +165,7 @@ func Load() (*Config, error) {
 
 		UnsplashAccessKey: getEnv("UNSPLASH_ACCESS_KEY", ""),
 		GeminiAPIKey:      getEnv("GEMINI_API_KEY", ""),
+		BraveSearchAPIKey: getEnv("BRAVE_SEARCH_API_KEY", ""),
 	}
 
 	if cfg.DatabaseURL == "" {

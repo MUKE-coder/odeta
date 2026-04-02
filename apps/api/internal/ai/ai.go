@@ -145,6 +145,18 @@ func (a *AI) Complete(ctx context.Context, req CompletionRequest) (*CompletionRe
 	}, nil
 }
 
+// StreamWithModel generates a streaming response using a specific model.
+func (a *AI) StreamWithModel(ctx context.Context, model string, req CompletionRequest, handler StreamHandler) error {
+	if model == "" {
+		model = a.model
+	}
+	originalModel := a.model
+	a.model = model
+	err := a.Stream(ctx, req, handler)
+	a.model = originalModel
+	return err
+}
+
 // Stream generates a streaming response, calling handler for each chunk.
 func (a *AI) Stream(ctx context.Context, req CompletionRequest, handler StreamHandler) error {
 	messages := req.Messages

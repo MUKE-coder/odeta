@@ -25,6 +25,7 @@ type OdetaChatHandler struct {
 type odetaChatRequest struct {
 	ProjectID   interface{}  `json:"project_id" binding:"required"`
 	Messages    []ai.Message `json:"messages" binding:"required"`
+	ModelID     string       `json:"model_id"`
 	MaxTokens   int          `json:"max_tokens"`
 	Temperature float64      `json:"temperature"`
 }
@@ -124,14 +125,29 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		h.DB.Create(&userConv)
 	}
 
+	// Resolve model: enforce free tier limits
+	modelID := req.ModelID
+	var user models.User
+	h.DB.Select("plan").First(&user, userID)
+	if user.Plan == "free" || user.Plan == "" {
+		// Free users can only use google/* models
+		if !strings.HasPrefix(modelID, "google/") {
+			modelID = "google/gemini-2.0-flash"
+		}
+	}
+	if modelID == "" {
+		modelID = "" // use default from AI service config
+	}
+
 	// Stream SSE response
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
 
 	var fullResponse strings.Builder
 
-	streamErr := h.AI.Stream(c.Request.Context(), ai.CompletionRequest{
+	streamErr := h.AI.StreamWithModel(c.Request.Context(), modelID, ai.CompletionRequest{
 		Messages:    messages,
 		MaxTokens:   req.MaxTokens,
 		Temperature: req.Temperature,

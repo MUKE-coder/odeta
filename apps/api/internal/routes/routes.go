@@ -226,7 +226,16 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	if cfg.OrbitaAPIKey != "" {
 		orbitaService = orbitasvc.New(cfg.OrbitaAPIKey)
 	}
-	_ = githubService // used in future phases
+	// File management handler
+	fileHandler := &handlers.FileHandler{
+		DB: db,
+	}
+
+	// GitHub handler
+	githubHandler := &handlers.GitHubHandler{
+		DB:     db,
+		GitHub: githubService,
+	}
 
 	// Stripe service (kept for webhook handler compatibility)
 	var stripeService *stripesvc.Service
@@ -427,6 +436,16 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		protected.POST("/deploy", deployHandler.Deploy)
 		protected.GET("/projects/:id/deployments", deployHandler.ListDeployments)
 		protected.GET("/subdomains/check", deployHandler.CheckSubdomain)
+
+		// File management
+		protected.GET("/projects/:id/files", fileHandler.ListFiles)
+		protected.GET("/projects/:id/files/content", fileHandler.GetFileContent)
+		protected.PUT("/projects/:id/files/content", fileHandler.SaveFileContent)
+		protected.DELETE("/projects/:id/files", fileHandler.DeleteFile)
+		protected.GET("/projects/:id/download", fileHandler.DownloadProject)
+
+		// GitHub integration
+		protected.POST("/projects/:id/github/create", githubHandler.CreateAndPush)
 
 		// grit:routes:protected
 	}
