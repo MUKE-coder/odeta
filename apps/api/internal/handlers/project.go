@@ -96,18 +96,17 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 // Create adds a new project.
 func (h *ProjectHandler) Create(c *gin.Context) {
 	var req struct {
-		Name string `json:"name" binding:"required"`
-		Slug string `json:"slug" binding:"required"`
-		Type string `json:"type" binding:"required"`
-		Status string `json:"status" binding:"required"`
-		Description string `json:"description"`
-		TechStack string `json:"tech_stack"`
-		GithubRepoUrl string `json:"github_repo_url" binding:"required"`
-		GithubRepoName string `json:"github_repo_name" binding:"required"`
-		Subdomain string `json:"subdomain" binding:"required"`
-		CustomDomain string `json:"custom_domain" binding:"required"`
-		OrbitaAppId string `json:"orbita_app_id" binding:"required"`
-		UserId uint `json:"user_id"`
+		Name           string `json:"name" binding:"required"`
+		Slug           string `json:"slug" binding:"required"`
+		Type           string `json:"type" binding:"required"`
+		Status         string `json:"status"`
+		Description    string `json:"description"`
+		TechStack      string `json:"tech_stack"`
+		GithubRepoUrl  string `json:"github_repo_url"`
+		GithubRepoName string `json:"github_repo_name"`
+		Subdomain      string `json:"subdomain"`
+		CustomDomain   string `json:"custom_domain"`
+		OrbitaAppId    string `json:"orbita_app_id"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -132,7 +131,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		Subdomain: req.Subdomain,
 		CustomDomain: req.CustomDomain,
 		OrbitaAppId: req.OrbitaAppId,
-		UserId: req.UserId,
+		UserId: c.GetUint("user_id"),
 	}
 
 	if err := h.DB.Create(&item).Error; err != nil {
