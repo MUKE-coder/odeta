@@ -68,9 +68,11 @@ export default function ChatPage() {
       setDesignComplete(true);
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
 
-      // Auto-send first message with design context
-      const designMsg = `Build this project. Design: ${choices.font} font, ${choices.colorScheme} colors, ${theme?.name || choices.theme} style.`;
-      setTimeout(() => sendMessage(designMsg), 300);
+      // Auto-send the project description as the first message
+      const openingMsg = project?.description
+        ? `Build this: ${project.description}. Use ${theme?.name || choices.theme} visual style, ${choices.font} font, ${choices.colorScheme} colors.`
+        : `Let's build: ${project?.name || "my project"}. Use ${theme?.name || choices.theme} style.`;
+      setTimeout(() => sendMessage(openingMsg), 300);
     } catch {
       toast.error("Failed to save design choices");
     }
@@ -161,7 +163,7 @@ export default function ChatPage() {
         <div className="flex flex-col" style={{ width: `${splitPos}%` }}>
           <div className="flex-1 overflow-y-auto py-4 space-y-1">
             {!isDesignDone && !isLoadingHistory && messages.length === 0 ? (
-              <DesignPhase isPaid={isPaid} onComplete={handleDesignComplete} />
+              <DesignPhase onComplete={handleDesignComplete} />
             ) : isLoadingHistory ? (
               <HistorySkeleton />
             ) : messages.length === 0 && !isStreaming ? (

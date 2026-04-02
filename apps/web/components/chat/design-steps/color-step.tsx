@@ -8,6 +8,12 @@ import { Check } from "lucide-react";
 export function ColorStep({ onSelect }: { onSelect: (color: string) => void }) {
   const [selected, setSelected] = useState<string | null>(null);
 
+  function handleSelect(id: string) {
+    if (selected) return;
+    setSelected(id);
+    setTimeout(() => onSelect(id), 200);
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -18,12 +24,15 @@ export function ColorStep({ onSelect }: { onSelect: (color: string) => void }) {
         {COLOR_PALETTES.map((palette) => (
           <button
             key={palette.id}
-            onClick={() => { setSelected(palette.id); onSelect(palette.id); }}
+            onClick={() => handleSelect(palette.id)}
+            disabled={!!selected}
             className={cn(
               "relative p-3 rounded-xl border-2 transition-all text-left",
               selected === palette.id
-                ? "border-gray-900 shadow-md"
-                : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                ? "border-gray-900 shadow-md scale-[0.98]"
+                : selected
+                  ? "border-gray-200 opacity-50"
+                  : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
             )}
           >
             <div className="flex gap-1 mb-2.5">

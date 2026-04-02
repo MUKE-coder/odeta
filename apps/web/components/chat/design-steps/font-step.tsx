@@ -7,6 +7,12 @@ import { FONT_PAIRINGS } from "@/lib/themes";
 export function FontStep({ onSelect }: { onSelect: (font: string) => void }) {
   const [selected, setSelected] = useState<string | null>(null);
 
+  function handleSelect(id: string) {
+    if (selected) return;
+    setSelected(id);
+    setTimeout(() => onSelect(id), 200);
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -17,12 +23,15 @@ export function FontStep({ onSelect }: { onSelect: (font: string) => void }) {
         {FONT_PAIRINGS.map((pair) => (
           <button
             key={pair.id}
-            onClick={() => { setSelected(pair.id); onSelect(pair.id); }}
+            onClick={() => handleSelect(pair.id)}
+            disabled={!!selected}
             className={cn(
               "relative text-left p-4 rounded-xl border-2 transition-all",
               selected === pair.id
-                ? "border-blue-600 bg-blue-50"
-                : "border-gray-200 bg-white hover:border-blue-300"
+                ? "border-blue-600 bg-blue-50 scale-[0.98]"
+                : selected
+                  ? "border-gray-200 bg-white opacity-50"
+                  : "border-gray-200 bg-white hover:border-blue-300"
             )}
           >
             {pair.popular && (

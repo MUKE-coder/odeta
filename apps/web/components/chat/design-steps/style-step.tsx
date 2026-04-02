@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { THEMES, THEME_CATEGORIES } from "@/lib/themes";
-import { ArrowRight, Check } from "lucide-react";
+import { Check } from "lucide-react";
 
 export function StyleStep({ onSelect }: { onSelect: (themeId: string) => void }) {
   const [category, setCategory] = useState("all");
@@ -11,29 +11,25 @@ export function StyleStep({ onSelect }: { onSelect: (themeId: string) => void })
 
   const filtered = category === "all" ? THEMES : THEMES.filter((t) => t.category === category);
 
+  function handleSelect(themeId: string) {
+    if (selected) return;
+    setSelected(themeId);
+    setTimeout(() => onSelect(themeId), 350);
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Choose your visual style</h2>
-          <p className="text-sm text-gray-500 mt-1">Sets the overall look and feel of your app</p>
-        </div>
-        {selected && (
-          <button
-            onClick={() => onSelect(selected)}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            Use {THEMES.find((t) => t.id === selected)?.name}
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        )}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">Choose your visual style</h2>
+        <p className="text-sm text-gray-500 mt-1">Sets the overall look and feel of your app</p>
       </div>
 
       <div className="flex gap-2 flex-wrap">
         {THEME_CATEGORIES.map((cat) => (
           <button
             key={cat.id}
-            onClick={() => setCategory(cat.id)}
+            onClick={() => !selected && setCategory(cat.id)}
+            disabled={!!selected}
             className={cn(
               "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
               category === cat.id
@@ -50,15 +46,17 @@ export function StyleStep({ onSelect }: { onSelect: (themeId: string) => void })
         {filtered.map((theme) => (
           <button
             key={theme.id}
-            onClick={() => setSelected(theme.id)}
+            onClick={() => handleSelect(theme.id)}
+            disabled={!!selected}
             className={cn(
               "relative p-0 rounded-xl overflow-hidden border-2 transition-all text-left",
               selected === theme.id
-                ? "border-blue-600 shadow-lg scale-[1.02]"
-                : "border-transparent hover:border-gray-300 hover:shadow-md"
+                ? "border-blue-600 shadow-lg scale-[0.98]"
+                : selected
+                  ? "border-transparent opacity-40"
+                  : "border-transparent hover:border-gray-300 hover:shadow-md"
             )}
           >
-            {/* Brand badge */}
             {theme.category === "brand" && (
               <div className="absolute top-2 left-2 z-10">
                 <span className="text-[8px] font-bold uppercase tracking-wider bg-black/30 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">
@@ -66,7 +64,6 @@ export function StyleStep({ onSelect }: { onSelect: (themeId: string) => void })
                 </span>
               </div>
             )}
-            {/* Mini app preview */}
             <div className="h-24 p-2.5" style={{ backgroundColor: theme.preview.bg }}>
               <div
                 className="h-4 rounded flex items-center px-2 gap-1.5 mb-1.5"
