@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useOdetaChat, type ChatMessage } from "@/hooks/use-chat";
 import { AIMessage } from "@/components/chat/ai-message";
+import { CommandCard } from "@/components/chat/command-card";
 import { UserMessage } from "@/components/chat/user-message";
 import { MessageSkeleton } from "@/components/chat/message-skeleton";
 import { HistorySkeleton } from "@/components/chat/history-skeleton";
@@ -75,7 +76,7 @@ export default function ChatPage() {
     }
   }
 
-  const { messages, isStreaming, isLoadingHistory, sendMessage } = useOdetaChat({
+  const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, sendMessage } = useOdetaChat({
     projectId,
     onCreditsUpdate: () => {
       queryClient.invalidateQueries({ queryKey: ["credits"] });
@@ -186,6 +187,19 @@ export default function ChatPage() {
             )}
 
             {showSkeleton && <MessageSkeleton />}
+
+            {/* Running command display */}
+            {runningCommand && (
+              <div className="px-4 py-2">
+                <CommandCard
+                  content={runningCommand.command}
+                  label={runningCommand.label}
+                  status="running"
+                  output={runningCommand.output}
+                />
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
 

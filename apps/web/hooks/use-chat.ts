@@ -32,6 +32,8 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
+  const [runningCommand, setRunningCommand] = useState<{ label: string; command: string; output: string[] } | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Load conversation history on mount
@@ -121,12 +123,60 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
           buffer = lines.pop() || "";
 
           for (const line of lines) {
+            // Handle event: prefixed lines
+            if (line.startsWith("event:")) {
+              const eventType = line.slice(6).trim();
+
+              // Read next data line
+              const nextIdx = lines.indexOf(line) + 1;
+              if (nextIdx < lines.length && lines[nextIdx].startsWith("data:")) {
+                const eventData = lines[nextIdx].slice(5).trim();
+                try {
+                  const parsed = JSON.parse(eventData);
+
+                  if (eventType === "command_start") {
+                    setIsExecuting(true);
+                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [] });
+                  } else if (eventType === "command_output" || eventType === "command_error_line") {
+                    setRunningCommand((prev) =>
+                      prev ? { ...prev, output: [...prev.output.slice(-50), parsed.line] } : null
+                    );
+                  } else if (eventType === "command_done") {
+                    setRunningCommand(null);
+                  } else if (eventType === "command_failed") {
+                    setRunningCommand(null);
+                  } else if (eventType === "credits") {
+                    setCreditsRemaining(parsed.remaining);
+                    onCreditsUpdate?.(parsed.used, parsed.remaining);
+                  }
+                } catch {
+                  // ignore parse errors for events
+                }
+              }
+              continue;
+            }
+
             if (line.startsWith("data:")) {
               const data = line.slice(5).trim();
-              if (data === "[DONE]") continue;
+              if (data === "[DONE]") {
+                setIsExecuting(false);
+                continue;
+              }
 
               try {
                 const parsed = JSON.parse(data);
+                // Handle command events sent as data-only (no event: prefix)
+                if (parsed.label !== undefined && parsed.command !== undefined) {
+                  // command_start/done events
+                  continue;
+                }
+                if (parsed.line !== undefined) {
+                  // command_output events
+                  setRunningCommand((prev) =>
+                    prev ? { ...prev, output: [...prev.output.slice(-50), parsed.line] } : null
+                  );
+                  continue;
+                }
                 if (parsed.used !== undefined && parsed.remaining !== undefined) {
                   setCreditsRemaining(parsed.remaining);
                   onCreditsUpdate?.(parsed.used, parsed.remaining);
@@ -170,6 +220,8 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError }: UseChatOpt
     sendMessage,
     isStreaming,
     isLoadingHistory,
+    isExecuting,
+    runningCommand,
     stopStreaming,
     creditsRemaining,
   };

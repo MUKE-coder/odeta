@@ -13,6 +13,7 @@ import (
 	aiservice "odeta/apps/api/internal/services/ai"
 	"odeta/apps/api/internal/models"
 	"odeta/apps/api/internal/services/credits"
+	"odeta/apps/api/internal/services/executor"
 )
 
 // OdetaChatHandler handles the Odeta AI chat with credit management.
@@ -176,15 +177,83 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	}
 	h.DB.Create(&aiConv)
 
-	// Deduct credit after successful stream
+	// Deduct credit for the message
 	newBalance, err := h.Credits.Deduct(userID, creditCost, models.CreditEventSpentMessage, "AI chat message", projectIDPtr)
 	if err != nil {
 		log.Printf("Warning: failed to deduct credit for user %d: %v", userID, err)
 	}
 
-	// Send final events
 	c.SSEvent("credits", fmt.Sprintf(`{"used":%d,"remaining":%d}`, creditCost, newBalance))
 	c.Writer.Flush()
+
+	// ── Execute commands found in the AI response ──
+	commands := executor.ExtractCommands(fullResponse.String())
+	projectIDStr := fmt.Sprintf("%d", req.GetProjectID())
+
+	if len(commands) > 0 {
+		projectDir, dirErr := executor.EnsureProjectDir(projectIDStr)
+		if dirErr != nil {
+			log.Printf("[Project %s] Failed to create project dir: %v", projectIDStr, dirErr)
+		} else {
+			workDir := projectDir
+
+			for _, cmd := range commands {
+				if !executor.IsSafeCommand(cmd.Command) {
+					log.Printf("[Project %s] Blocked unsafe command: %s", projectIDStr, cmd.Command)
+					continue
+				}
+
+				log.Printf("[Project %s] Executing: %s", projectIDStr, cmd.Command)
+
+				c.SSEvent("command_start", gin.H{
+					"label":   cmd.Label,
+					"command": cmd.Command,
+				})
+				c.Writer.Flush()
+
+				execResult, execErr := executor.RunCommand(cmd.Command, workDir, func(line string, isStderr bool) {
+					evtType := "command_output"
+					if isStderr {
+						evtType = "command_error_line"
+					}
+					c.SSEvent(evtType, gin.H{"line": line})
+					c.Writer.Flush()
+				})
+
+				if execErr != nil || (execResult != nil && execResult.ExitCode != 0) {
+					errMsg := "Command failed"
+					if execResult != nil && execResult.Error != "" {
+						errMsg = execResult.Error
+					} else if execErr != nil {
+						errMsg = execErr.Error()
+					}
+					log.Printf("[Project %s] Failed: %s — %s", projectIDStr, cmd.Command, errMsg)
+					c.SSEvent("command_failed", gin.H{
+						"label": cmd.Label, "command": cmd.Command, "error": errMsg,
+					})
+					c.Writer.Flush()
+				} else {
+					c.SSEvent("command_done", gin.H{
+						"label": cmd.Label, "command": cmd.Command,
+					})
+					c.Writer.Flush()
+
+					if strings.Contains(cmd.Command, "shadcn@latest add https://") {
+						h.Credits.Deduct(userID, 2, models.CreditEventSpentCommand, "Installed: "+cmd.Label, projectIDPtr)
+					}
+				}
+
+				// After create next-app, switch to the project subdirectory
+				if strings.Contains(cmd.Command, "create next-app") {
+					workDir = executor.FindNextjsDir(workDir)
+					log.Printf("[Project %s] WorkDir → %s", projectIDStr, workDir)
+				}
+			}
+
+			h.DB.Model(&project).Update("status", "BUILDING")
+		}
+	}
+
 	c.SSEvent("done", "[DONE]")
 	c.Writer.Flush()
 }
