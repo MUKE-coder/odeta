@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-//go:embed dist
+//go:embed all:dist
 var DistFS embed.FS
 
 // Handler returns a Gin handler that serves the embedded SPA.
