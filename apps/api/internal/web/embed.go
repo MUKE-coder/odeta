@@ -14,6 +14,17 @@ import (
 //go:embed all:dist
 var DistFS embed.FS
 
+// Dynamic route patterns: map URL path patterns to their pre-rendered placeholder paths.
+// Next.js static export renders [param] routes at /placeholder/index.html.
+var dynamicRoutes = []struct {
+	prefix      string // URL prefix to match
+	segments    int    // number of segments after prefix that are dynamic
+	placeholder string // path to the pre-rendered page
+}{
+	{prefix: "dashboard/chat/", segments: 1, placeholder: "dashboard/chat/placeholder/index.html"},
+	{prefix: "dashboard/projects/", segments: 1, placeholder: "dashboard/projects/placeholder/settings/index.html"},
+}
+
 // Handler returns a Gin handler that serves the embedded SPA.
 func Handler() gin.HandlerFunc {
 	subFS, err := fs.Sub(DistFS, "dist")
@@ -26,7 +37,7 @@ func Handler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		urlPath := c.Request.URL.Path
 
-		// Skip API routes — let Gin handle them
+		// Skip API routes
 		if strings.HasPrefix(urlPath, "/api/") {
 			return
 		}
@@ -55,7 +66,19 @@ func Handler() gin.HandlerFunc {
 			return
 		}
 
-		// SPA fallback — serve root index.html for client-side routing
+		// Try dynamic route placeholders
+		cleanPath := strings.TrimSuffix(filePath, "/")
+		for _, route := range dynamicRoutes {
+			if strings.HasPrefix(cleanPath, route.prefix) {
+				if data, err := fs.ReadFile(subFS, route.placeholder); err == nil {
+					c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+					c.Abort()
+					return
+				}
+			}
+		}
+
+		// Final fallback — serve root index.html
 		if data, err := fs.ReadFile(subFS, "index.html"); err == nil {
 			c.Data(http.StatusOK, "text/html; charset=utf-8", data)
 			c.Abort()
