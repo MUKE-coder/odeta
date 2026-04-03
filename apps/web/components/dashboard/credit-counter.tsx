@@ -8,10 +8,15 @@ export function CreditCounter({ className }: { className?: string }) {
   const { data } = useQuery({
     queryKey: ["credits"],
     queryFn: async () => {
-      const { data } = await apiClient.get("/api/me/credits");
-      return data;
+      try {
+        const { data } = await apiClient.get("/api/me/credits");
+        return data;
+      } catch {
+        return { data: { credits: 0 } };
+      }
     },
     refetchInterval: 30000,
+    retry: false,
   });
 
   const credits = data?.data?.credits ?? 0;
