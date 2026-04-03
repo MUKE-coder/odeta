@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
+	"math/rand"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -120,9 +123,18 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Make slug unique by appending a random suffix
+	slug := req.Slug
+	var existingCount int64
+	h.DB.Model(&models.Project{}).Where("slug = ?", slug).Count(&existingCount)
+	if existingCount > 0 {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		slug = fmt.Sprintf("%s-%d", slug, r.Intn(9999))
+	}
+
 	item := models.Project{
 		Name:           req.Name,
-		Slug:           req.Slug,
+		Slug:           slug,
 		Type:           req.Type,
 		Status:         req.Status,
 		Description:    req.Description,
