@@ -1,10 +1,10 @@
 services:
   # Single binary: Go API + embedded Next.js SPA
-  app:
+  api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: odeta-app
+    container_name: odeta-api
     restart: unless-stopped
     ports:
       - "8080:8080"
