@@ -3,13 +3,10 @@
 import { Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Cookies from "js-cookie";
-import { apiClient } from "@/lib/api-client";
-import { useQueryClient } from "@tanstack/react-query";
 
 function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
   const processed = useRef(false);
 
   useEffect(() => {
@@ -21,34 +18,25 @@ function CallbackHandler() {
     const error = searchParams.get("error");
 
     if (error) {
-      router.push("/auth/sign-in?error=" + encodeURIComponent(error));
+      router.push("/auth/sign-in/?error=" + encodeURIComponent(error));
       return;
     }
 
     if (accessToken && refreshToken) {
       Cookies.set("access_token", accessToken, { expires: 1 });
       Cookies.set("refresh_token", refreshToken, { expires: 7 });
-
-      // Fetch user to verify auth works
-      apiClient
-        .get("/api/auth/me")
-        .then(({ data }) => {
-          queryClient.setQueryData(["me"], data.data);
-          router.push("/dashboard/new");
-        })
-        .catch(() => {
-          router.push("/dashboard/new");
-        });
+      // Redirect immediately — don't verify, just go
+      router.push("/dashboard/new/");
     } else {
-      router.push("/auth/sign-in?error=Authentication+failed");
+      router.push("/auth/sign-in/?error=Authentication+failed");
     }
-  }, [searchParams, router, queryClient]);
+  }, [searchParams, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="flex min-h-screen items-center justify-center">
       <div className="text-center">
-        <div className="inline-flex h-10 w-10 animate-spin items-center justify-center rounded-full border-2 border-accent border-t-transparent" />
-        <p className="mt-4 text-sm text-text-secondary">Signing you in...</p>
+        <div className="inline-flex h-10 w-10 animate-spin items-center justify-center rounded-full border-2 border-blue-600 border-t-transparent" />
+        <p className="mt-4 text-sm text-gray-500">Signing you in...</p>
       </div>
     </div>
   );
@@ -58,10 +46,10 @@ export default function AuthCallbackPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex min-h-screen items-center justify-center">
           <div className="text-center">
-            <div className="inline-flex h-10 w-10 animate-spin items-center justify-center rounded-full border-2 border-accent border-t-transparent" />
-            <p className="mt-4 text-sm text-text-secondary">Loading...</p>
+            <div className="inline-flex h-10 w-10 animate-spin items-center justify-center rounded-full border-2 border-blue-600 border-t-transparent" />
+            <p className="mt-4 text-sm text-gray-500">Loading...</p>
           </div>
         </div>
       }

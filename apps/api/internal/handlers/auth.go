@@ -500,7 +500,7 @@ func (h *AuthHandler) OAuthCallback(c *gin.Context) {
 	}
 
 	// Redirect to frontend with tokens
-	redirectURL := fmt.Sprintf("%s/auth/callback?access_token=%s&refresh_token=%s",
+	redirectURL := fmt.Sprintf("%s/auth/callback/?access_token=%s&refresh_token=%s",
 		h.Config.OAuthFrontendURL,
 		url.QueryEscape(tokens.AccessToken),
 		url.QueryEscape(tokens.RefreshToken),
