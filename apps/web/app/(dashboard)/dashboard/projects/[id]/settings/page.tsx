@@ -1,7 +1,7 @@
 import ProjectSettingsPage from "./settings-page";
 
 export function generateStaticParams() {
-  return [];
+  return [{ id: "placeholder" }];
 }
 
 export default function Page() {

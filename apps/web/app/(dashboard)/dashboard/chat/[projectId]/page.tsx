@@ -1,7 +1,7 @@
 import ChatPage from "./chat-page";
 
 export function generateStaticParams() {
-  return [];
+  return [{ projectId: "placeholder" }];
 }
 
 export default function Page() {
