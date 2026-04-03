@@ -27,7 +27,12 @@ import Link from "next/link";
 
 export default function ChatPage() {
   const params = useParams();
-  const projectId = params.projectId as string;
+  // In static export, useParams may return "placeholder" before hydration.
+  // Fall back to extracting the real ID from the URL.
+  const rawParam = params.projectId as string;
+  const projectId = rawParam === "placeholder"
+    ? (typeof window !== "undefined" ? window.location.pathname.split("/chat/")[1]?.replace(/\/$/, "") : rawParam)
+    : rawParam;
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState(() => loadDraft(projectId));

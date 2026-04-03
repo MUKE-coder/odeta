@@ -33,7 +33,12 @@ export default function ProjectSettingsPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const projectId = Number(params.id);
+  const rawId = params.id as string;
+  const projectId = Number(
+    rawId === "placeholder"
+      ? (typeof window !== "undefined" ? window.location.pathname.split("/projects/")[1]?.split("/")[0] : "0")
+      : rawId
+  );
 
   const { data, isLoading } = useQuery<{ data: Project }>({
     queryKey: ["project", projectId],
