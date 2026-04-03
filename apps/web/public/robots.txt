@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /auth/callback
+Disallow: /api/
+
+Sitemap: https://odeta.gritcms.com/sitemap.xml
