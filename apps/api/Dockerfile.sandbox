@@ -1,15 +1,27 @@
 FROM node:20-slim
 
-# Install pnpm
+# Install pnpm globally
 RUN npm install -g pnpm@9
 
-# Pre-cache common Next.js deps for faster project creation
-RUN mkdir /tmp/cache && cd /tmp/cache && \
+# Create a persistent pnpm store so deps are cached across projects
+RUN mkdir -p /tmp/cache/pnpm-store
+
+# Pre-cache Next.js deps — pnpm create next-app will reuse these
+RUN mkdir /tmp/cache/warmup && cd /tmp/cache/warmup && \
+    pnpm config set store-dir /tmp/cache/pnpm-store && \
     pnpm init && \
     pnpm add next@15 react@19 react-dom@19 typescript \
     tailwindcss @types/node @types/react @types/react-dom \
     eslint eslint-config-next class-variance-authority \
-    clsx tailwind-merge lucide-react && \
-    rm -rf /tmp/cache
+    clsx tailwind-merge lucide-react \
+    @radix-ui/react-slot @radix-ui/react-dialog \
+    @radix-ui/react-dropdown-menu @radix-ui/react-label \
+    @radix-ui/react-separator @radix-ui/react-tabs \
+    @radix-ui/react-avatar @radix-ui/react-tooltip \
+    @radix-ui/react-select @radix-ui/react-checkbox && \
+    rm -rf /tmp/cache/warmup
+
+# Set pnpm to use the cached store by default
+RUN pnpm config set store-dir /tmp/cache/pnpm-store
 
 WORKDIR /home/user
