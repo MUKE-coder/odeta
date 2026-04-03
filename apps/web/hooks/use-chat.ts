@@ -152,15 +152,17 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite,
               if (eventType) {
                 try {
                   const parsed = JSON.parse(rawData);
-                  if (eventType === "command_exec") {
+                  if (eventType === "command_exec" || eventType === "command_start") {
                     setIsExecuting(true);
-                    setBuildProgress({ completed: parsed.index || 0, total: parsed.total || 1 });
-                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [], index: parsed.index, total: parsed.total });
-                    onCommandExec?.(parsed.command, parsed.label, parsed.index, parsed.total);
-                  } else if (eventType === "command_start") {
-                    setIsExecuting(true);
-                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [], index: parsed.index, total: parsed.total });
-                    setBuildProgress({ completed: parsed.index || 0, total: parsed.total || 1 });
+                    const total = parsed.total || 1;
+                    const index = parsed.index ?? 0;
+                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [], index, total });
+                    // Set total from the event, keep completed count from previous state
+                    setBuildProgress((prev) => ({
+                      completed: prev?.completed ?? 0,
+                      total: Math.max(prev?.total ?? total, total),
+                    }));
+                    onCommandExec?.(parsed.command, parsed.label, index, total);
                   } else if (eventType === "command_output" || eventType === "command_error_line") {
                     setRunningCommand((prev) =>
                       prev ? { ...prev, output: [...prev.output.slice(-50), parsed.line] } : null
