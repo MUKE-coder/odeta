@@ -68,14 +68,18 @@ func (m *DockerManager) GetOrCreate(projectID string) (*DockerSandbox, error) {
 	// Remove any existing container with this name
 	exec.Command("docker", "rm", "-f", name).Run()
 
+	// Cleanup old stopped sandbox containers to free resources
+	exec.Command("sh", "-c", "docker ps -a --filter 'name=odeta-' --filter 'status=exited' -q | xargs -r docker rm -f").Run()
+	exec.Command("sh", "-c", "docker ps -a --filter 'name=odeta-' --filter 'status=created' -q | xargs -r docker rm -f").Run()
+
 	// Don't mount host volume — the sandbox container manages its own files.
 	// Files can be copied out later via docker cp if needed.
 	out, err := exec.Command("docker", "run", "-d",
 		"--name", name,
 		"-p", fmt.Sprintf("%d:3000", port),
 		"-w", "/home/user",
-		"--memory", "2g",
-		"--cpus", "2.0",
+		"--memory", "1g",
+		"--cpus", "0.5",
 		"--network", "bridge",
 		"-e", "CI=true",
 		"-e", "NEXT_TELEMETRY_DISABLED=1",
