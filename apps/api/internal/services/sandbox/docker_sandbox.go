@@ -68,13 +68,15 @@ func (m *DockerManager) GetOrCreate(projectID string) (*DockerSandbox, error) {
 	// Remove any existing container with this name
 	exec.Command("docker", "rm", "-f", name).Run()
 
+	// Don't mount host volume — the sandbox container manages its own files.
+	// Files can be copied out later via docker cp if needed.
 	out, err := exec.Command("docker", "run", "-d",
 		"--name", name,
 		"-p", fmt.Sprintf("%d:3000", port),
-		"-v", fmt.Sprintf("%s:/home/user", baseDir),
 		"-w", "/home/user",
-		"--memory", "1g",
-		"--cpus", "1.0",
+		"--memory", "2g",
+		"--cpus", "2.0",
+		"--network", "bridge",
 		"-e", "CI=true",
 		"-e", "NEXT_TELEMETRY_DISABLED=1",
 		"-e", "NPM_CONFIG_YES=true",
@@ -161,30 +163,35 @@ func (sb *DockerSandbox) GetPreviewURL() string {
 	return fmt.Sprintf("http://%s:%d", ip, sb.Port)
 }
 
-// ListFiles returns all files in the project directory (skips node_modules, etc).
+// ListFiles returns project files from inside the container via docker exec.
 func (sb *DockerSandbox) ListFiles() (map[string]string, error) {
-	base := filepath.Join(getProjectsDir(), sb.ProjectID)
 	files := map[string]string{}
-	filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
+
+	// Find all files in the project dir (skip node_modules, .next)
+	out, err := exec.Command("docker", "exec", sb.ContainerID,
+		"find", sb.WorkDir, "-type", "f",
+		"-not", "-path", "*/node_modules/*",
+		"-not", "-path", "*/.next/*",
+		"-not", "-path", "*/.git/*",
+		"-maxdepth", "10",
+	).Output()
+	if err != nil {
+		return files, err
+	}
+
+	for _, filePath := range strings.Split(string(out), "\n") {
+		filePath = strings.TrimSpace(filePath)
+		if filePath == "" {
+			continue
 		}
-		if info.IsDir() {
-			name := info.Name()
-			if name == "node_modules" || name == ".next" || name == ".git" {
-				return filepath.SkipDir
-			}
-			return nil
+		// Read each file
+		content, err := exec.Command("docker", "exec", sb.ContainerID, "cat", filePath).Output()
+		if err != nil || len(content) > 500*1024 {
+			continue
 		}
-		if info.Size() > 500*1024 {
-			return nil
-		}
-		rel, _ := filepath.Rel(base, path)
-		if data, err := os.ReadFile(path); err == nil {
-			files[rel] = string(data)
-		}
-		return nil
-	})
+		rel := strings.TrimPrefix(filePath, sb.WorkDir+"/")
+		files[rel] = string(content)
+	}
 	return files, nil
 }
 
