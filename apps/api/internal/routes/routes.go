@@ -61,6 +61,11 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	r.Use(middleware.CORS(cfg.CORSOrigins))
 	r.Use(middleware.Gzip())
 
+	// SPA static file handler — serves /_next/static/*, images, etc.
+	// Must be before API routes so static assets are served correctly.
+	// Skips /api/* paths (handled by API routes below).
+	r.Use(web.Handler())
+
 	// Mount Sentinel security suite (WAF, rate limiting, auth shield, anomaly detection)
 	if cfg.SentinelEnabled {
 		sentinel.Mount(r, db, sentinel.Config{
