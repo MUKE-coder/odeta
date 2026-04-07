@@ -15,7 +15,7 @@ import { EnvTab } from "@/components/chat/env-tab";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { EditorPanel } from "@/components/editor/editor-panel";
 import { BuildPreview } from "@/components/editor/build-preview";
-import { useNodebox } from "@/hooks/use-nodebox";
+import { useWebContainer } from "@/hooks/use-webcontainer";
 import { ProjectActions } from "@/components/project/project-actions";
 import { PreviewToolbar, type DeviceId } from "@/components/editor/preview-toolbar";
 import { THEMES } from "@/lib/themes";
@@ -43,16 +43,14 @@ export default function ChatPage() {
   const [previewDevice, setPreviewDevice] = useState<DeviceId>("desktop");
   const [answeredQuestions, setAnsweredQuestions] = useState<Record<string, string>>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const nodeboxIframeRef = useRef<HTMLIFrameElement>(null);
-  const previewIframeRef = useRef<HTMLIFrameElement>(null);
-  const nodebox = useNodebox();
+  const wc = useWebContainer();
   const { user } = useAuth();
   const isPaid = user?.plan === "starter" || user?.plan === "pro";
 
-  // Boot Nodebox when page loads
+  // Boot WebContainer when page loads
   useEffect(() => {
-    if (nodeboxIframeRef.current && nodebox.status === "idle") {
-      nodebox.connect(nodeboxIframeRef.current);
+    if (wc.status === "idle") {
+      wc.boot().catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -99,7 +97,7 @@ export default function ChatPage() {
     setTimeout(() => sendMessage(openingMsg), 300);
   }
 
-  const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, buildProgress, previewUrl, sendMessage } = useOdetaChat({
+  const { messages, isStreaming, isLoadingHistory, isExecuting, runningCommand, buildProgress, sendMessage } = useOdetaChat({
     projectId,
     onCreditsUpdate: () => {
       queryClient.invalidateQueries({ queryKey: ["credits"] });
@@ -107,42 +105,40 @@ export default function ChatPage() {
     onError: (error: string) => {
       toast.error(error);
     },
+    onFileWrite: async (path: string, content: string) => {
+      // Write each file to WebContainer as it streams from the AI
+      if (wc.isReady) {
+        await wc.writeFile(path, content);
+      }
+    },
   });
 
-  // Load files into Nodebox and start preview when build completes
+  // Load files into WebContainer and start preview when build completes
   const loadPreview = useCallback(async () => {
-    if (!nodebox.isReady || !previewIframeRef.current) return;
+    if (!wc.isReady) return;
     try {
-      const { data } = await apiClient.get(`/api/projects/${projectId}/files`);
-      const files = data?.data || data?.files;
-      if (files && typeof files === "object") {
-        // Convert file tree to flat map if needed
-        const flatFiles: Record<string, string> = {};
-        const flatten = (obj: Record<string, unknown>, prefix = "") => {
-          for (const [key, val] of Object.entries(obj)) {
-            if (typeof val === "string") {
-              flatFiles[prefix + key] = val;
-            } else if (typeof val === "object" && val !== null) {
-              flatten(val as Record<string, unknown>, prefix + key + "/");
-            }
-          }
-        };
-        flatten(files);
-        await nodebox.initFiles(flatFiles);
-        await nodebox.startDevServer(previewIframeRef.current);
+      const { data } = await apiClient.get(`/api/projects/${projectId}/files/all`);
+      const files = data?.files;
+      if (files && typeof files === "object" && Object.keys(files).length > 0) {
+        await wc.writeFiles(files);
+        await wc.installAndStart();
       }
     } catch (err) {
       console.error("Failed to load preview:", err);
     }
-  }, [nodebox, projectId]);
+  }, [wc, projectId]);
 
-  // Auto-load preview when build completes
+  // Auto-load preview when build completes (files saved to disk)
   useEffect(() => {
-    if (!isExecuting && buildProgress === null && previewUrl) {
-      loadPreview();
+    if (!isExecuting && !isStreaming && messages.length > 0) {
+      // Check if the last AI message had file blocks
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.role === "assistant" && lastMsg.content.includes("<file path=")) {
+        loadPreview();
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExecuting, buildProgress, previewUrl]);
+  }, [isExecuting, isStreaming, messages.length]);
 
   // Compute execution state for PlanCard
   const activeCommandIndex = runningCommand?.index ?? null;
@@ -431,29 +427,17 @@ export default function ChatPage() {
           ) : (
             <>
               <PreviewToolbar activeDevice={previewDevice} onDeviceChange={setPreviewDevice} />
-              {/* Hidden Nodebox runtime iframe */}
-              <iframe
-                ref={nodeboxIframeRef}
-                style={{ display: "none" }}
-                title="nodebox-runtime"
-              />
 
-              {nodebox.previewUrl ? (
+              {wc.previewUrl ? (
                 <iframe
-                  ref={previewIframeRef}
-                  src={nodebox.previewUrl}
+                  src={wc.previewUrl}
                   className="w-full flex-1 border-none"
                   title="App preview"
+                  allow="cross-origin-isolated"
                 />
-              ) : previewUrl ? (
-                <iframe
-                  src={previewUrl}
-                  className="w-full flex-1 border-none"
-                  title="App preview"
-                />
-              ) : isExecuting ? (
+              ) : isStreaming || isExecuting ? (
                 <BuildPreview
-                  currentStep={runningCommand?.label}
+                  currentStep={runningCommand?.label || (isStreaming ? "Generating files..." : undefined)}
                   progressPercent={buildProgressPercent}
                 />
               ) : (
@@ -463,7 +447,7 @@ export default function ChatPage() {
                       <Eye className="h-5 w-5 text-text-tertiary" />
                     </div>
                     <p className="text-sm text-text-secondary">
-                      {nodebox.status === "connecting"
+                      {wc.status === "booting"
                         ? "Starting preview engine..."
                         : "Your app preview will appear here as it's built"}
                     </p>
