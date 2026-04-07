@@ -6,6 +6,8 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -361,4 +363,53 @@ func (h *ProjectHandler) UpdateMetadata(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": project})
+}
+
+// GetFiles returns all generated project files from disk.
+func (h *ProjectHandler) GetFiles(c *gin.Context) {
+	projectID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	// Verify ownership
+	var project models.Project
+	if err := h.DB.Where("id = ? AND user_id = ?", projectID, userID).First(&project).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{"code": "NOT_FOUND", "message": "Project not found"},
+		})
+		return
+	}
+
+	base := os.Getenv("PROJECTS_DIR")
+	if base == "" {
+		base = "/tmp/odeta-projects"
+	}
+	projectDir := filepath.Join(base, projectID)
+
+	files := map[string]string{}
+
+	_ = filepath.Walk(projectDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == "node_modules" || name == ".next" || name == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		// Skip large files
+		if info.Size() > 500*1024 {
+			return nil
+		}
+		rel, _ := filepath.Rel(projectDir, path)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		files[rel] = string(data)
+		return nil
+	})
+
+	c.JSON(http.StatusOK, gin.H{"files": files})
 }

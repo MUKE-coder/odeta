@@ -213,6 +213,50 @@ func (h *FileHandler) DownloadProject(c *gin.Context) {
 	c.Data(http.StatusOK, "application/zip", buf.Bytes())
 }
 
+// GetAllFiles returns a flat map of path→content for all project files (for StackBlitz embed).
+func (h *FileHandler) GetAllFiles(c *gin.Context) {
+	projectID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	if !h.verifyOwnership(projectID, userID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Project not found"}})
+		return
+	}
+
+	projectDir := filepath.Join(projectsBaseDir, projectID)
+	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
+		c.JSON(http.StatusOK, gin.H{"files": map[string]string{}})
+		return
+	}
+
+	files := map[string]string{}
+	skipDirs := map[string]bool{"node_modules": true, ".next": true, ".git": true}
+
+	filepath.Walk(projectDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			if skipDirs[info.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if info.Size() > 500*1024 {
+			return nil
+		}
+		rel, _ := filepath.Rel(projectDir, path)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		files[rel] = string(data)
+		return nil
+	})
+
+	c.JSON(http.StatusOK, gin.H{"files": files})
+}
+
 func (h *FileHandler) verifyOwnership(projectID string, userID uint) bool {
 	var count int64
 	h.DB.Model(&models.Project{}).Where("id = ? AND user_id = ?", projectID, userID).Count(&count)

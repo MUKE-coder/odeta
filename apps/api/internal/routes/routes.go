@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"os/exec"
 	"time"
 
 	"github.com/MUKE-coder/gin-docs/gindocs"
@@ -29,7 +28,7 @@ import (
 	"odeta/apps/api/internal/services/grit"
 	"odeta/apps/api/internal/services/devserver"
 	orbitasvc "odeta/apps/api/internal/services/orbita"
-	sandboxsvc "odeta/apps/api/internal/services/sandbox"
+	_ "odeta/apps/api/internal/services/sandbox" // keep package for now
 	"odeta/apps/api/internal/web"
 	stripesvc "odeta/apps/api/internal/services/stripe"
 	"odeta/apps/api/internal/handlers/webhooks"
@@ -294,21 +293,11 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 	}
 
 	// Odeta handlers
-	// Docker sandbox manager — runs commands in isolated containers
-	var dockerManager *sandboxsvc.DockerManager
-	// Check if Docker is available
-	if _, err := exec.LookPath("docker"); err == nil {
-		dockerManager = sandboxsvc.NewDockerManager("odeta-sandbox")
-		log.Println("Docker sandbox execution configured")
-	} else {
-		log.Println("Docker not available — commands will be emitted for frontend")
-	}
 
 	odetaChatHandler := &handlers.OdetaChatHandler{
 		DB:      db,
 		AI:      svc.AI,
 		Credits: creditsService,
-		Docker:  dockerManager,
 	}
 	generateHandler := &handlers.GenerateHandler{
 		DB:       db,
@@ -465,6 +454,7 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 
 		// File management
 		protected.GET("/projects/:id/files", fileHandler.ListFiles)
+		protected.GET("/projects/:id/files/all", fileHandler.GetAllFiles)
 		protected.GET("/projects/:id/files/content", fileHandler.GetFileContent)
 		protected.PUT("/projects/:id/files/content", fileHandler.SaveFileContent)
 		protected.DELETE("/projects/:id/files", fileHandler.DeleteFile)

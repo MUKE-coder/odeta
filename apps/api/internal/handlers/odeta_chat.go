@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,7 +17,6 @@ import (
 	"odeta/apps/api/internal/models"
 	"odeta/apps/api/internal/services/credits"
 	"odeta/apps/api/internal/services/executor"
-	"odeta/apps/api/internal/services/sandbox"
 )
 
 // OdetaChatHandler handles the Odeta AI chat with credit management.
@@ -23,7 +24,6 @@ type OdetaChatHandler struct {
 	DB      *gorm.DB
 	AI      *ai.AI
 	Credits *credits.Service
-	Docker  *sandbox.DockerManager // Docker sandbox (nil if Docker unavailable)
 }
 
 type odetaChatRequest struct {
@@ -120,13 +120,12 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		}
 	}
 	if lastUserMsg != "" {
-		userConv := models.Conversation{
+		h.DB.Create(&models.Conversation{
 			ProjectId: req.GetProjectID(),
 			Role:      models.ConversationRoleUser,
 			Content:   lastUserMsg,
 			Phase:     models.ConversationPhaseDiscovery,
-		}
-		h.DB.Create(&userConv)
+		})
 	}
 
 	// Resolve model: enforce free tier limits
@@ -134,13 +133,9 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	var user models.User
 	h.DB.Select("plan").First(&user, userID)
 	if user.Plan == "free" || user.Plan == "" {
-		// Free users can only use google/* models
 		if !strings.HasPrefix(modelID, "google/") {
 			modelID = "google/gemini-2.0-flash"
 		}
-	}
-	if modelID == "" {
-		modelID = "" // use default from AI service config
 	}
 
 	// Stream SSE response
@@ -150,7 +145,7 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no")
 	c.Header("X-Content-Type-Options", "nosniff")
 
-	// Keepalive — prevent proxy/client timeouts during long operations
+	// Keepalive to prevent proxy timeouts
 	keepaliveDone := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(15 * time.Second)
@@ -170,8 +165,8 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	var fullResponse strings.Builder
 
 	maxTokens := req.MaxTokens
-	if maxTokens == 0 || maxTokens < 4096 {
-		maxTokens = 4096 // ensure plan responses aren't truncated
+	if maxTokens == 0 || maxTokens < 16000 {
+		maxTokens = 16000 // large enough for full file generation
 	}
 
 	streamErr := h.AI.StreamWithModel(c.Request.Context(), modelID, ai.CompletionRequest{
@@ -194,16 +189,15 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	// Save AI response to DB
 	pid := req.GetProjectID()
 	projectIDPtr := &pid
-	aiConv := models.Conversation{
-		ProjectId:   req.GetProjectID(),
+	h.DB.Create(&models.Conversation{
+		ProjectId:   pid,
 		Role:        models.ConversationRoleAssistant,
 		Content:     fullResponse.String(),
 		Phase:       models.ConversationPhaseDiscovery,
 		CreditsUsed: creditCost,
-	}
-	h.DB.Create(&aiConv)
+	})
 
-	// Deduct credit for the message
+	// Deduct credit
 	newBalance, err := h.Credits.Deduct(userID, creditCost, models.CreditEventSpentMessage, "AI chat message", projectIDPtr)
 	if err != nil {
 		log.Printf("Warning: failed to deduct credit for user %d: %v", userID, err)
@@ -212,120 +206,53 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	c.SSEvent("credits", fmt.Sprintf(`{"used":%d,"remaining":%d}`, creditCost, newBalance))
 	c.Writer.Flush()
 
-	// ── Emit file blocks for WebContainer to write ──
+	// ── Extract and save files from AI response ──
 	aiText := fullResponse.String()
-	extractedFiles := executor.ExtractFiles(aiText)
-	for _, f := range extractedFiles {
-		c.SSEvent("file_write", gin.H{"path": f.Path, "content": f.Content})
-		c.Writer.Flush()
-	}
-	if len(extractedFiles) > 0 {
-		log.Printf("[Project %d] Emitted %d file_write events", req.GetProjectID(), len(extractedFiles))
-	}
+	files := executor.ExtractFiles(aiText)
 
-	// ── Extract commands for execution ──
-	commands := executor.ExtractAllCommands(aiText)
-	projectIDStr := fmt.Sprintf("%d", req.GetProjectID())
+	if len(files) > 0 {
+		projectDir := getProjectDir(fmt.Sprintf("%d", pid))
+		savedCount := 0
 
-	log.Printf("[Project %s] AI response length: %d chars, found %d executable commands", projectIDStr, len(aiText), len(commands))
-	if len(commands) > 0 {
-		for i, cmd := range commands {
-			log.Printf("[Project %s] Command %d: %s", projectIDStr, i, cmd.Command)
-		}
-	}
-
-	// Execute commands — use Docker sandbox if available, else emit for frontend
-	if len(commands) > 0 {
-		totalCmds := len(commands)
-
-		if h.Docker != nil {
-			// ── Docker Sandbox Execution ──
-			log.Printf("[Project %s] Starting Docker sandbox (%d commands)", projectIDStr, totalCmds)
-
-			c.SSEvent("status", gin.H{"message": "Starting sandbox..."})
+		for _, f := range files {
+			// Emit file_write event to frontend
+			c.SSEvent("file_write", gin.H{"path": f.Path, "content": f.Content})
 			c.Writer.Flush()
 
-			sb, sbErr := h.Docker.GetOrCreate(projectIDStr)
-			if sbErr != nil {
-				log.Printf("[Project %s] Docker sandbox failed: %v", projectIDStr, sbErr)
-				// Fall back to emitting commands
-				for i, cmd := range commands {
-					c.SSEvent("command_exec", gin.H{
-						"label": cmd.Label, "command": cmd.Command,
-						"index": i, "total": totalCmds,
-					})
-					c.Writer.Flush()
-				}
-			} else {
-				h.DB.Model(&project).Update("status", "BUILDING")
-				workDir := sb.WorkDir
-
-				for i, cmd := range commands {
-					if !executor.IsSafeCommand(cmd.Command) {
-						continue
-					}
-
-					log.Printf("[Project %s] Step %d/%d: %s", projectIDStr, i+1, totalCmds, cmd.Command)
-
-					c.SSEvent("command_start", gin.H{
-						"label": cmd.Label, "command": cmd.Command,
-						"index": i, "total": totalCmds,
-					})
-					c.Writer.Flush()
-
-					exitCode, runErr := sb.RunCommand(cmd.Command, workDir, func(line string, isErr bool) {
-						evtType := "command_output"
-						if isErr {
-							evtType = "command_error_line"
-						}
-						c.SSEvent(evtType, gin.H{"line": line})
-						c.Writer.Flush()
-					})
-
-					if runErr != nil || exitCode != 0 {
-						log.Printf("[Project %s] Step %d failed", projectIDStr, i+1)
-						c.SSEvent("command_failed", gin.H{"label": cmd.Label, "index": i})
-					} else {
-						c.SSEvent("command_done", gin.H{"label": cmd.Label, "index": i, "total": totalCmds})
-					}
-					c.Writer.Flush()
-
-					// After create next-app, update workDir
-					if strings.Contains(cmd.Command, "create next-app") {
-						parts := strings.Fields(cmd.Command)
-						for j, p := range parts {
-							if strings.Contains(p, "next-app") && j+1 < len(parts) && !strings.HasPrefix(parts[j+1], "-") {
-								workDir = "/home/user/" + parts[j+1]
-								break
-							}
-						}
-					}
-				}
-
-				previewURL := sb.GetPreviewURL()
-				c.SSEvent("preview_ready", gin.H{"url": previewURL})
-				c.Writer.Flush()
-
-				bal, _ := h.Credits.Balance(userID)
-				c.SSEvent("build_complete", gin.H{
-					"credits_remaining": bal,
-					"preview_url":       previewURL,
-				})
-				c.Writer.Flush()
+			// Save file to disk
+			fullPath := filepath.Join(projectDir, f.Path)
+			dir := filepath.Dir(fullPath)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				log.Printf("[Project %d] Failed to create dir %s: %v", pid, dir, err)
+				continue
 			}
-		} else {
-			// ── Fallback — emit commands for frontend ──
-			for i, cmd := range commands {
-				c.SSEvent("command_exec", gin.H{
-					"label": cmd.Label, "command": cmd.Command,
-					"index": i, "total": totalCmds,
-				})
-				c.Writer.Flush()
+			if err := os.WriteFile(fullPath, []byte(f.Content), 0644); err != nil {
+				log.Printf("[Project %d] Failed to write %s: %v", pid, f.Path, err)
+				continue
 			}
-			h.DB.Model(&project).Update("status", "BUILDING")
+			savedCount++
 		}
+
+		log.Printf("[Project %d] Saved %d/%d files to %s", pid, savedCount, len(files), projectDir)
+
+		// Update project status
+		h.DB.Model(&project).Update("status", "BUILT")
+
+		c.SSEvent("build_complete", gin.H{
+			"files_count":      savedCount,
+			"credits_remaining": newBalance,
+		})
+		c.Writer.Flush()
 	}
 
 	c.SSEvent("done", "[DONE]")
 	c.Writer.Flush()
+}
+
+func getProjectDir(projectID string) string {
+	base := os.Getenv("PROJECTS_DIR")
+	if base == "" {
+		base = "/tmp/odeta-projects"
+	}
+	return filepath.Join(base, projectID)
 }
