@@ -128,14 +128,10 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		})
 	}
 
-	// Resolve model: enforce free tier limits
+	// Resolve model — default to Claude Sonnet for best XML format compliance
 	modelID := req.ModelID
-	var user models.User
-	h.DB.Select("plan").First(&user, userID)
-	if user.Plan == "free" || user.Plan == "" {
-		if !strings.HasPrefix(modelID, "google/") {
-			modelID = "google/gemini-2.0-flash"
-		}
+	if modelID == "" {
+		modelID = "anthropic/claude-sonnet-4-5"
 	}
 
 	// Stream SSE response
