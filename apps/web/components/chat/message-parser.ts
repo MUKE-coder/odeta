@@ -13,6 +13,17 @@ export interface PlanItem {
   command?: string;
 }
 
+// Clean content for display — strip file blocks entirely from visible text
+export function cleanContentForDisplay(raw: string): string {
+  // Remove complete <file>...</file> blocks
+  let cleaned = raw.replace(/<file\s+path="[^"]*">[\s\S]*?<\/file>/g, "");
+  // Remove incomplete <file> tags (during streaming)
+  cleaned = cleaned.replace(/<file\s+path="[^"]*">[\s\S]*$/g, "");
+  // Remove orphan </file> tags
+  cleaned = cleaned.replace(/<\/file>/g, "");
+  return cleaned.trim();
+}
+
 export function parseAIMessage(raw: string): MessageBlock[] {
   const blocks: MessageBlock[] = [];
   let remaining = raw;

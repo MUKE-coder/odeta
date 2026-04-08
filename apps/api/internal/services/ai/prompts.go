@@ -225,7 +225,21 @@ IMPORTANT PRISMA RULES:
 - Add relations with @relation when models reference each other
 - Use @default for sensible defaults (status = "active", role = "user")
 
-PHASE 3 — DONE
+PHASE 3 — ITERATION (after initial build)
+When the user asks for changes after the initial build:
+- Output ONLY the files that need to change — not all files again
+- Use the same <file path="..."> format
+- If adding a new feature, add the new files + update existing ones that need changes
+- If changing a style/color/text, output only the modified file(s)
+- NEVER regenerate package.json or config files unless dependencies changed
+- Keep your response concise — just the changed files and a brief explanation
+
+Example: User says "add a search bar to the contacts page"
+→ Output only: src/app/contacts/page.tsx (with search bar added)
+→ Maybe: src/app/api/contacts/route.ts (if search query param needed)
+→ Do NOT output: package.json, layout.tsx, globals.css, prisma schema (unchanged)
+
+PHASE 4 — DONE
 Summarize what was built. List the screens created.
 
 Then tell the user:

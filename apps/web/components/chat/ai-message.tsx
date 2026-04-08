@@ -3,7 +3,7 @@
 import { Zap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { parseAIMessage } from "./message-parser";
+import { parseAIMessage, cleanContentForDisplay } from "./message-parser";
 import { QuestionCard } from "./question-card";
 import { CommandCard } from "./command-card";
 import { JBCommandCard } from "./jb-command-card";
@@ -29,7 +29,12 @@ export function AIMessage({
   completedCommandIndexes = [],
   currentCommandOutput = [],
 }: AIMessageProps) {
-  const blocks = parseAIMessage(content);
+  // During streaming, clean file blocks from display to avoid raw XML
+  const displayContent = isStreaming ? cleanContentForDisplay(content) : content;
+  const blocks = parseAIMessage(displayContent);
+
+  // Count files from the full (uncleaned) content for the summary
+  const fileCount = (content.match(/<file\s+path="/g) || []).length;
 
   return (
     <div className="flex gap-3 px-4 py-3">
@@ -132,8 +137,16 @@ export function AIMessage({
               return null;
           }
         })}
+        {/* Streaming indicator + live file counter */}
         {isStreaming && (
-          <span className="inline-block w-1.5 h-4 bg-accent animate-pulse rounded-sm ml-0.5" />
+          <div className="flex items-center gap-3">
+            <span className="inline-block w-1.5 h-4 bg-accent animate-pulse rounded-sm" />
+            {fileCount > 0 && (
+              <span className="text-xs text-blue-500 font-medium animate-pulse">
+                Generating files... ({fileCount} so far)
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>

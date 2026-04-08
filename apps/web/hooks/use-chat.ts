@@ -36,7 +36,7 @@ export function useOdetaChat({
   onFilesGenerated,
 }: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
 
@@ -64,15 +64,13 @@ export function useOdetaChat({
         }));
         setMessages(loaded);
       })
-      .catch(() => {
-        // Silently fail — empty chat is fine
-      })
+      .catch(() => {})
       .finally(() => setIsLoadingHistory(false));
   }, [projectId]);
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || isLoading) return;
+      if (!content.trim() || isStreaming) return;
 
       // Add user message immediately
       const userMsg: ChatMessage = {
@@ -81,8 +79,16 @@ export function useOdetaChat({
         content,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, userMsg]);
-      setIsLoading(true);
+
+      const assistantId = `assistant-${Date.now()}`;
+
+      setMessages((prev) => [
+        ...prev,
+        userMsg,
+        // Add empty assistant message that will be filled by streaming
+        { id: assistantId, role: "assistant", content: "", timestamp: new Date() },
+      ]);
+      setIsStreaming(true);
 
       try {
         const token = Cookies.get("access_token");
@@ -101,7 +107,7 @@ export function useOdetaChat({
 
         if (response.status === 402) {
           onError?.("You've run out of credits. Upgrade your plan to continue.");
-          setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+          setMessages((prev) => prev.filter((m) => m.id !== userMsg.id && m.id !== assistantId));
           return;
         }
 
@@ -110,68 +116,91 @@ export function useOdetaChat({
           throw new Error(errData?.error?.message || `Request failed (${response.status})`);
         }
 
-        // Parse NDJSON stream — read line by line, use the last "done" line
-        const text = await response.text();
-        const lines = text.trim().split("\n").filter(Boolean);
+        // Stream NDJSON — read line by line as they arrive
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No response body");
 
-        let finalData: Record<string, unknown> | null = null;
+        const decoder = new TextDecoder();
+        let buffer = "";
         let streamedContent = "";
+        let finalFiles: string[] = [];
 
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line);
-            if (parsed.error) {
-              throw new Error(parsed.error.message || "AI error");
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // Split on newlines — each line is a JSON object
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || ""; // keep incomplete line in buffer
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            try {
+              const parsed = JSON.parse(trimmed);
+
+              if (parsed.error) {
+                throw new Error(parsed.error.message || "AI error");
+              }
+
+              if (parsed.chunk) {
+                // Append chunk to the streaming message
+                streamedContent += parsed.chunk;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, content: streamedContent }
+                      : m
+                  )
+                );
+              }
+
+              if (parsed.done) {
+                // Final message — update with complete content and files
+                const finalContent = (parsed.content as string) || streamedContent;
+                finalFiles = (parsed.files as string[]) || [];
+
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, content: finalContent, files: finalFiles, creditsUsed: parsed.credits_used }
+                      : m
+                  )
+                );
+
+                if (parsed.credits_remaining !== undefined) {
+                  setCreditsRemaining(parsed.credits_remaining);
+                  onCreditsUpdate?.(parsed.credits_used || 1, parsed.credits_remaining);
+                }
+              }
+            } catch (e) {
+              // Skip malformed JSON lines (keepalive spaces, etc.)
+              if (e instanceof Error && e.message.includes("AI error")) throw e;
             }
-            if (parsed.done) {
-              finalData = parsed;
-            } else if (parsed.chunk) {
-              streamedContent += parsed.chunk;
-            }
-          } catch {
-            // skip malformed lines
           }
         }
 
-        const aiContent = (finalData?.content as string) || streamedContent || "";
-        const aiFiles = (finalData?.files as string[]) || [];
-
-        // Add AI response
-        const aiMsg: ChatMessage = {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: aiContent,
-          timestamp: new Date(),
-          creditsUsed: (finalData?.credits_used as number) || 1,
-          files: aiFiles,
-        };
-        setMessages((prev) => [...prev, aiMsg]);
-
-        // Update credits
-        if (finalData?.credits_remaining !== undefined) {
-          setCreditsRemaining(finalData.credits_remaining as number);
-          onCreditsUpdate?.((finalData.credits_used as number) || 1, finalData.credits_remaining as number);
-        }
-
-        // Notify about generated files
-        if (aiFiles.length > 0) {
-          onFilesGenerated?.(aiFiles);
+        // Notify about generated files after stream ends
+        if (finalFiles.length > 0) {
+          onFilesGenerated?.(finalFiles);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Chat failed";
         onError?.(message);
-        // Remove user message on error
-        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+        setMessages((prev) => prev.filter((m) => m.id !== assistantId));
       } finally {
-        setIsLoading(false);
+        setIsStreaming(false);
       }
     },
-    [projectId, isLoading, onCreditsUpdate, onError, onFilesGenerated]
+    [projectId, isStreaming, onCreditsUpdate, onError, onFilesGenerated]
   );
 
   return {
     messages,
-    isStreaming: isLoading, // keep same name for UI compat
+    isStreaming,
     isLoadingHistory,
     isExecuting: false,
     runningCommand: null,

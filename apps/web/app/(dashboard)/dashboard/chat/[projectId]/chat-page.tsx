@@ -15,7 +15,7 @@ import { EnvTab } from "@/components/chat/env-tab";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { EditorPanel } from "@/components/editor/editor-panel";
 import { BuildPreview } from "@/components/editor/build-preview";
-import { openInStackBlitz } from "@/components/editor/stackblitz-preview";
+import { StackBlitzPreview, openInStackBlitz } from "@/components/editor/stackblitz-preview";
 import { ProjectActions } from "@/components/project/project-actions";
 import { PreviewToolbar, type DeviceId } from "@/components/editor/preview-toolbar";
 import { THEMES } from "@/lib/themes";
@@ -44,6 +44,7 @@ export default function ChatPage() {
   const [answeredQuestions, setAnsweredQuestions] = useState<Record<string, string>>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [generatedFiles, setGeneratedFiles] = useState<string[]>([]);
+  const [fileContents, setFileContents] = useState<Record<string, string>>({});
   const { user } = useAuth();
   const isPaid = user?.plan === "starter" || user?.plan === "pro";
 
@@ -69,6 +70,7 @@ export default function ChatPage() {
           const files = data?.files;
           if (files && typeof files === "object") {
             setGeneratedFiles(Object.keys(files));
+            setFileContents(files);
           }
         })
         .catch(() => {});
@@ -116,6 +118,12 @@ export default function ChatPage() {
     },
     onFilesGenerated: (files: string[]) => {
       setGeneratedFiles(files);
+      // Fetch full file contents for StackBlitz embed
+      apiClient.get(`/api/projects/${projectId}/files/all`)
+        .then(({ data }) => {
+          if (data?.files) setFileContents(data.files);
+        })
+        .catch(() => {});
     },
   });
 
@@ -388,35 +396,25 @@ export default function ChatPage() {
                   currentStep="Generating files..."
                   progressPercent={0}
                 />
-              ) : generatedFiles.length > 0 ? (
-                <div className="flex flex-1 flex-col items-center justify-center bg-gray-50 gap-4">
-                  <div className="text-center px-8">
-                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100">
-                      <svg className="h-7 w-7 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-                    </div>
-                    <p className="text-base font-semibold text-gray-900 mb-1">
-                      {generatedFiles.length} files generated
-                    </p>
-                    <p className="text-sm text-gray-500 mb-4">
-                      Open in StackBlitz to see the live preview and edit code
-                    </p>
+              ) : Object.keys(fileContents).length > 0 ? (
+                <div className="flex-1 flex flex-col">
+                  {/* Inline StackBlitz embed */}
+                  <div className="flex-1">
+                    <StackBlitzPreview
+                      files={fileContents}
+                      projectName={project?.name || "odeta-project"}
+                    />
+                  </div>
+                  {/* Open in new tab fallback */}
+                  <div className="flex items-center justify-between px-3 py-2 border-t bg-gray-50">
+                    <span className="text-xs text-gray-500">{generatedFiles.length} files</span>
                     <button
                       onClick={handleOpenInStackBlitz}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
                     >
-                      <svg className="w-4 h-4" viewBox="0 0 28 28" fill="currentColor"><path d="M12.747 16.273h-7.46L18.925 1.5l-3.671 10.227h7.46L9.075 26.5l3.671-10.227z"/></svg>
-                      Open in StackBlitz
+                      Open in new tab
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
                     </button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 justify-center px-8 max-w-md">
-                    {generatedFiles.slice(0, 8).map((f) => (
-                      <span key={f} className="text-[10px] font-mono bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
-                        {f.split("/").pop()}
-                      </span>
-                    ))}
-                    {generatedFiles.length > 8 && (
-                      <span className="text-[10px] text-gray-400">+{generatedFiles.length - 8} more</span>
-                    )}
                   </div>
                 </div>
               ) : (
