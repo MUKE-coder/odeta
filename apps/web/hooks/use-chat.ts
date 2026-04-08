@@ -110,28 +110,52 @@ export function useOdetaChat({
           throw new Error(errData?.error?.message || `Request failed (${response.status})`);
         }
 
-        const data = await response.json();
+        // Parse NDJSON stream — read line by line, use the last "done" line
+        const text = await response.text();
+        const lines = text.trim().split("\n").filter(Boolean);
+
+        let finalData: Record<string, unknown> | null = null;
+        let streamedContent = "";
+
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.error) {
+              throw new Error(parsed.error.message || "AI error");
+            }
+            if (parsed.done) {
+              finalData = parsed;
+            } else if (parsed.chunk) {
+              streamedContent += parsed.chunk;
+            }
+          } catch {
+            // skip malformed lines
+          }
+        }
+
+        const aiContent = (finalData?.content as string) || streamedContent || "";
+        const aiFiles = (finalData?.files as string[]) || [];
 
         // Add AI response
         const aiMsg: ChatMessage = {
           id: `assistant-${Date.now()}`,
           role: "assistant",
-          content: data.content || "",
+          content: aiContent,
           timestamp: new Date(),
-          creditsUsed: data.credits_used,
-          files: data.files,
+          creditsUsed: (finalData?.credits_used as number) || 1,
+          files: aiFiles,
         };
         setMessages((prev) => [...prev, aiMsg]);
 
         // Update credits
-        if (data.credits_remaining !== undefined) {
-          setCreditsRemaining(data.credits_remaining);
-          onCreditsUpdate?.(data.credits_used || 1, data.credits_remaining);
+        if (finalData?.credits_remaining !== undefined) {
+          setCreditsRemaining(finalData.credits_remaining as number);
+          onCreditsUpdate?.((finalData.credits_used as number) || 1, finalData.credits_remaining as number);
         }
 
         // Notify about generated files
-        if (data.files && data.files.length > 0) {
-          onFilesGenerated?.(data.files);
+        if (aiFiles.length > 0) {
+          onFilesGenerated?.(aiFiles);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Chat failed";

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -46,8 +47,9 @@ func (r *odetaChatRequest) GetProjectID() uint {
 	}
 }
 
-// Chat handles AI chat — returns complete JSON response (no SSE streaming).
-// This avoids HTTP/2 protocol errors with reverse proxies.
+// Chat handles AI chat with newline-delimited JSON streaming (NDJSON).
+// Sends keepalive newlines while AI generates, then the full JSON response at the end.
+// This avoids HTTP/2 SSE issues AND reverse proxy timeouts.
 func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	if h.AI == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -128,33 +130,58 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		})
 	}
 
-	// Resolve model — default to Claude Sonnet
+	// Resolve model
 	modelID := req.ModelID
 	if modelID == "" {
 		modelID = "anthropic/claude-sonnet-4-5"
 	}
 
-	// Call AI — non-streaming, get complete response
 	maxTokens := req.MaxTokens
 	if maxTokens == 0 || maxTokens < 16000 {
 		maxTokens = 16000
 	}
 
-	resp, aiErr := h.AI.CompleteWithModel(c.Request.Context(), modelID, ai.CompletionRequest{
+	// Use NDJSON streaming: send partial chunks so reverse proxy doesn't timeout
+	// Content-Type: application/x-ndjson allows multiple JSON objects separated by newlines
+	c.Header("Content-Type", "application/x-ndjson")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+
+	// Stream AI response — send each chunk as a partial NDJSON line
+	var fullResponse strings.Builder
+	chunkCount := 0
+
+	streamErr := h.AI.StreamWithModel(c.Request.Context(), modelID, ai.CompletionRequest{
 		Messages:    messages,
 		MaxTokens:   maxTokens,
 		Temperature: req.Temperature,
+	}, func(chunk string) error {
+		fullResponse.WriteString(chunk)
+		chunkCount++
+
+		// Send chunk as NDJSON line every few chunks (keeps connection alive)
+		if chunkCount%3 == 0 {
+			line, _ := json.Marshal(map[string]string{"chunk": chunk})
+			c.Writer.Write(line)
+			c.Writer.WriteString("\n")
+			c.Writer.Flush()
+		}
+		return nil
 	})
 
-	if aiErr != nil {
-		log.Printf("[Chat] AI error for project %d: %v", req.GetProjectID(), aiErr)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{"code": "AI_ERROR", "message": "AI generation failed: " + aiErr.Error()},
+	if streamErr != nil {
+		log.Printf("[Chat] AI error for project %d: %v", req.GetProjectID(), streamErr)
+		errLine, _ := json.Marshal(map[string]interface{}{
+			"error": map[string]string{"code": "AI_ERROR", "message": "AI generation failed"},
 		})
+		c.Writer.Write(errLine)
+		c.Writer.WriteString("\n")
+		c.Writer.Flush()
 		return
 	}
 
-	aiText := resp.Content
+	aiText := fullResponse.String()
 
 	// Save AI response
 	pid := req.GetProjectID()
@@ -168,9 +195,9 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	})
 
 	// Deduct credit
-	newBalance, err := h.Credits.Deduct(userID, creditCost, models.CreditEventSpentMessage, "AI chat message", projectIDPtr)
-	if err != nil {
-		log.Printf("Warning: failed to deduct credit for user %d: %v", userID, err)
+	newBalance, deductErr := h.Credits.Deduct(userID, creditCost, models.CreditEventSpentMessage, "AI chat message", projectIDPtr)
+	if deductErr != nil {
+		log.Printf("Warning: failed to deduct credit for user %d: %v", userID, deductErr)
 	}
 
 	// Extract and save files
@@ -197,14 +224,18 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		}
 	}
 
-	// Return complete response as JSON
-	c.JSON(http.StatusOK, gin.H{
-		"content":          aiText,
-		"files":            savedFiles,
-		"credits_used":     creditCost,
+	// Send final complete response as the last NDJSON line
+	finalLine, _ := json.Marshal(map[string]interface{}{
+		"done":              true,
+		"content":           aiText,
+		"files":             savedFiles,
+		"credits_used":      creditCost,
 		"credits_remaining": newBalance,
-		"model":            modelID,
+		"model":             modelID,
 	})
+	c.Writer.Write(finalLine)
+	c.Writer.WriteString("\n")
+	c.Writer.Flush()
 }
 
 func getProjectDir(projectID string) string {
