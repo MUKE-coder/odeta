@@ -15,7 +15,7 @@ import { EnvTab } from "@/components/chat/env-tab";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { EditorPanel } from "@/components/editor/editor-panel";
 import { BuildPreview } from "@/components/editor/build-preview";
-import { StackBlitzPreview, openInStackBlitz } from "@/components/editor/stackblitz-preview";
+import { SandboxPreview } from "@/components/editor/sandbox-preview";
 import { ProjectActions } from "@/components/project/project-actions";
 import { PreviewToolbar, type DeviceId } from "@/components/editor/preview-toolbar";
 import { THEMES } from "@/lib/themes";
@@ -127,21 +127,7 @@ export default function ChatPage() {
     },
   });
 
-  // Open project in StackBlitz (new tab)
-  const handleOpenInStackBlitz = useCallback(async () => {
-    try {
-      const { data } = await apiClient.get(`/api/projects/${projectId}/files/all`);
-      const files = data?.files;
-      if (files && typeof files === "object" && Object.keys(files).length > 0) {
-        openInStackBlitz(files, project?.name || "odeta-project");
-        toast.success("Opening in StackBlitz...");
-      } else {
-        toast.error("No files generated yet");
-      }
-    } catch {
-      toast.error("Failed to load project files");
-    }
-  }, [projectId, project?.name]);
+  // Preview updates automatically via fileContents state
 
   // No more command execution state — files are generated directly
   const activeCommandIndex = null;
@@ -391,44 +377,9 @@ export default function ChatPage() {
             <>
               <PreviewToolbar activeDevice={previewDevice} onDeviceChange={setPreviewDevice} />
 
-              {isStreaming ? (
-                <BuildPreview
-                  currentStep="Generating files..."
-                  progressPercent={0}
-                />
-              ) : Object.keys(fileContents).length > 0 ? (
-                <div className="flex-1 flex flex-col">
-                  {/* Inline StackBlitz embed */}
-                  <div className="flex-1">
-                    <StackBlitzPreview
-                      files={fileContents}
-                      projectName={project?.name || "odeta-project"}
-                    />
-                  </div>
-                  {/* Open in new tab fallback */}
-                  <div className="flex items-center justify-between px-3 py-2 border-t bg-gray-50">
-                    <span className="text-xs text-gray-500">{generatedFiles.length} files</span>
-                    <button
-                      onClick={handleOpenInStackBlitz}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                    >
-                      Open in new tab
-                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-1 items-center justify-center bg-gray-50">
-                  <div className="text-center px-8">
-                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white border">
-                      <Eye className="h-5 w-5 text-text-tertiary" />
-                    </div>
-                    <p className="text-sm text-text-secondary">
-                      Your app preview will appear here as it&apos;s built
-                    </p>
-                  </div>
-                </div>
-              )}
+              <div className="flex-1 min-h-0">
+                <SandboxPreview files={fileContents} />
+              </div>
             </>
           )}
         </div>

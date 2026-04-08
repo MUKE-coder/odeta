@@ -1,0 +1,140 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Globe, Loader2, RefreshCw, ExternalLink, AlertCircle } from "lucide-react";
+import { compileProject } from "@/lib/sandbox/compiler";
+import { FileSystem } from "@/lib/sandbox/file-system";
+
+interface SandboxPreviewProps {
+  files: Record<string, string>;
+}
+
+export function SandboxPreview({ files }: SandboxPreviewProps) {
+  const [compiledHtml, setCompiledHtml] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+  const [isCompiling, setIsCompiling] = useState(false);
+  const [lastCompiled, setLastCompiled] = useState<Date | null>(null);
+  const [iframeKey, setIframeKey] = useState(0);
+
+  const compile = async () => {
+    if (Object.keys(files).length === 0) return;
+    setIsCompiling(true);
+    setError(null);
+
+    try {
+      // Remap paths: AI generates src/app/page.tsx but compiler expects app/page.tsx
+      const remapped: Record<string, string> = {};
+      for (const [path, content] of Object.entries(files)) {
+        const cleanPath = path.replace(/^src\//, "");
+        remapped[cleanPath] = content;
+      }
+
+      const fs = new FileSystem(remapped);
+      const result = await compileProject(fs);
+      setCompiledHtml(result);
+      setLastCompiled(new Date());
+      setIframeKey((prev) => prev + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Compilation failed");
+    } finally {
+      setIsCompiling(false);
+    }
+  };
+
+  useEffect(() => {
+    compile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files]);
+
+  const openInNewTab = () => {
+    const blob = new Blob([compiledHtml], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  };
+
+  if (Object.keys(files).length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full bg-white">
+        <div className="text-center px-6">
+          <Globe className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+          <p className="text-sm text-gray-500">Your app preview will appear here</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isCompiling) {
+    return (
+      <div className="flex items-center justify-center h-full bg-white">
+        <div className="text-center">
+          <Loader2 className="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2" />
+          <p className="text-sm text-gray-500">Compiling preview...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-full bg-white">
+        <div className="flex items-center gap-2 px-3 py-2 border-b bg-red-50">
+          <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+          <span className="text-xs font-medium text-red-700">Preview Error</span>
+          <button
+            onClick={compile}
+            className="ml-auto text-xs text-red-600 hover:text-red-800 flex items-center gap-1"
+          >
+            <RefreshCw className="w-3 h-3" /> Retry
+          </button>
+        </div>
+        <div className="flex-1 p-4 overflow-auto">
+          <pre className="text-xs font-mono text-red-600 whitespace-pre-wrap">{error}</pre>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-white">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-b bg-gray-50">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-500" />
+          <span className="text-xs font-medium text-gray-600">Preview</span>
+          {lastCompiled && (
+            <span className="text-[10px] text-gray-400">
+              {lastCompiled.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={openInNewTab}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded"
+            title="Open in new tab"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={compile}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded"
+            title="Refresh"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Iframe with compiled HTML */}
+      <div className="flex-1 min-h-0">
+        <iframe
+          key={iframeKey}
+          srcDoc={compiledHtml}
+          className="w-full h-full border-0"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+          title="Live Preview"
+        />
+      </div>
+    </div>
+  );
+}
