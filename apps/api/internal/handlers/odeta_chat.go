@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -47,7 +46,8 @@ func (r *odetaChatRequest) GetProjectID() uint {
 	}
 }
 
-// Chat handles streaming AI chat with credit checks and conversation persistence.
+// Chat handles AI chat — returns complete JSON response (no SSE streaming).
+// This avoids HTTP/2 protocol errors with reverse proxies.
 func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	if h.AI == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -75,7 +75,7 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		return
 	}
 
-	// Check credits (1 per message)
+	// Check credits
 	const creditCost = 1
 	result, err := h.Credits.Check(userID, creditCost)
 	if err != nil {
@@ -95,11 +95,11 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		return
 	}
 
-	// Load conversation history from DB
+	// Load conversation history
 	var history []models.Conversation
 	h.DB.Where("project_id = ?", req.GetProjectID()).Order("created_at asc").Find(&history)
 
-	// Build messages with system prompt + history + new messages
+	// Build messages: system prompt + history + new
 	messages := []ai.Message{
 		{Role: "system", Content: aiservice.OdetaSystemPrompt},
 	}
@@ -111,7 +111,7 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	}
 	messages = append(messages, req.Messages...)
 
-	// Save user message to DB
+	// Save user message
 	lastUserMsg := ""
 	for i := len(req.Messages) - 1; i >= 0; i-- {
 		if req.Messages[i].Role == "user" {
@@ -128,67 +128,41 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		})
 	}
 
-	// Resolve model — default to Claude Sonnet for best XML format compliance
+	// Resolve model — default to Claude Sonnet
 	modelID := req.ModelID
 	if modelID == "" {
 		modelID = "anthropic/claude-sonnet-4-5"
 	}
 
-	// Stream SSE response
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
-	c.Header("X-Content-Type-Options", "nosniff")
-
-	// Keepalive to prevent proxy timeouts
-	keepaliveDone := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				c.Writer.WriteString(": keepalive\n\n")
-				c.Writer.Flush()
-			case <-keepaliveDone:
-				return
-			}
-		}
-	}()
-	defer close(keepaliveDone)
-
-	var fullResponse strings.Builder
-
+	// Call AI — non-streaming, get complete response
 	maxTokens := req.MaxTokens
 	if maxTokens == 0 || maxTokens < 16000 {
-		maxTokens = 16000 // large enough for full file generation
+		maxTokens = 16000
 	}
 
-	streamErr := h.AI.StreamWithModel(c.Request.Context(), modelID, ai.CompletionRequest{
+	resp, aiErr := h.AI.CompleteWithModel(c.Request.Context(), modelID, ai.CompletionRequest{
 		Messages:    messages,
 		MaxTokens:   maxTokens,
 		Temperature: req.Temperature,
-	}, func(chunk string) error {
-		fullResponse.WriteString(chunk)
-		c.SSEvent("message", chunk)
-		c.Writer.Flush()
-		return nil
 	})
 
-	if streamErr != nil {
-		c.SSEvent("error", fmt.Sprintf("Stream error: %v", streamErr))
-		c.Writer.Flush()
+	if aiErr != nil {
+		log.Printf("[Chat] AI error for project %d: %v", req.GetProjectID(), aiErr)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{"code": "AI_ERROR", "message": "AI generation failed: " + aiErr.Error()},
+		})
 		return
 	}
 
-	// Save AI response to DB
+	aiText := resp.Content
+
+	// Save AI response
 	pid := req.GetProjectID()
 	projectIDPtr := &pid
 	h.DB.Create(&models.Conversation{
 		ProjectId:   pid,
 		Role:        models.ConversationRoleAssistant,
-		Content:     fullResponse.String(),
+		Content:     aiText,
 		Phase:       models.ConversationPhaseDiscovery,
 		CreditsUsed: creditCost,
 	})
@@ -199,50 +173,38 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		log.Printf("Warning: failed to deduct credit for user %d: %v", userID, err)
 	}
 
-	c.SSEvent("credits", fmt.Sprintf(`{"used":%d,"remaining":%d}`, creditCost, newBalance))
-	c.Writer.Flush()
-
-	// ── Extract and save files from AI response ──
-	aiText := fullResponse.String()
+	// Extract and save files
 	files := executor.ExtractFiles(aiText)
+	savedFiles := []string{}
 
 	if len(files) > 0 {
 		projectDir := getProjectDir(fmt.Sprintf("%d", pid))
-		savedCount := 0
-
 		for _, f := range files {
-			// Emit file_write event to frontend
-			c.SSEvent("file_write", gin.H{"path": f.Path, "content": f.Content})
-			c.Writer.Flush()
-
-			// Save file to disk
 			fullPath := filepath.Join(projectDir, f.Path)
 			dir := filepath.Dir(fullPath)
 			if err := os.MkdirAll(dir, 0755); err != nil {
-				log.Printf("[Project %d] Failed to create dir %s: %v", pid, dir, err)
 				continue
 			}
 			if err := os.WriteFile(fullPath, []byte(f.Content), 0644); err != nil {
-				log.Printf("[Project %d] Failed to write %s: %v", pid, f.Path, err)
 				continue
 			}
-			savedCount++
+			savedFiles = append(savedFiles, f.Path)
 		}
+		log.Printf("[Project %d] Saved %d files to disk", pid, len(savedFiles))
 
-		log.Printf("[Project %d] Saved %d/%d files to %s", pid, savedCount, len(files), projectDir)
-
-		// Update project status
-		h.DB.Model(&project).Update("status", "BUILT")
-
-		c.SSEvent("build_complete", gin.H{
-			"files_count":      savedCount,
-			"credits_remaining": newBalance,
-		})
-		c.Writer.Flush()
+		if len(savedFiles) > 0 {
+			h.DB.Model(&project).Update("status", "BUILT")
+		}
 	}
 
-	c.SSEvent("done", "[DONE]")
-	c.Writer.Flush()
+	// Return complete response as JSON
+	c.JSON(http.StatusOK, gin.H{
+		"content":          aiText,
+		"files":            savedFiles,
+		"credits_used":     creditCost,
+		"credits_remaining": newBalance,
+		"model":            modelID,
+	})
 }
 
 func getProjectDir(projectID string) string {

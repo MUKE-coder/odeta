@@ -18,6 +18,10 @@ services:
     volumes:
       - odeta-projects:/tmp/odeta-projects
       - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      # Force HTTP/1.1 for SSE streaming compatibility
+      - "traefik.http.services.odeta-api.loadbalancer.server.scheme=h2c"
+      - "traefik.http.middlewares.odeta-headers.headers.customresponseheaders.Connection=keep-alive"
     depends_on:
       postgres:
         condition: service_healthy

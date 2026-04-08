@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Cookies from "js-cookie";
 
 const API_URL = "";
@@ -11,14 +11,14 @@ export interface ChatMessage {
   content: string;
   creditsUsed?: number;
   timestamp: Date;
+  files?: string[];
 }
 
 interface UseChatOptions {
   projectId: string | number;
   onCreditsUpdate?: (used: number, remaining: number) => void;
   onError?: (error: string) => void;
-  onFileWrite?: (path: string, content: string) => void;
-  onCommandExec?: (command: string, label: string, index: number, total: number) => void;
+  onFilesGenerated?: (files: string[]) => void;
 }
 
 interface ConversationRow {
@@ -29,62 +29,62 @@ interface ConversationRow {
   credits_used: number;
 }
 
-export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite, onCommandExec }: UseChatOptions) {
+export function useOdetaChat({
+  projectId,
+  onCreditsUpdate,
+  onError,
+  onFilesGenerated,
+}: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
-  const [runningCommand, setRunningCommand] = useState<{ label: string; command: string; output: string[]; index?: number; total?: number } | null>(null);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [buildProgress, setBuildProgress] = useState<{ completed: number; total: number } | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
   // Load conversation history on mount
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || projectId === "placeholder") return;
     setIsLoadingHistory(true);
 
     const token = Cookies.get("access_token");
     fetch(`${API_URL}/api/projects/${projectId}/conversations`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
-      .then((res) => res.json())
-      .then((result) => {
-        const rows: ConversationRow[] = result.data || [];
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load");
+        return res.json();
+      })
+      .then((data) => {
+        const rows: ConversationRow[] = Array.isArray(data) ? data : data?.data || [];
         const loaded: ChatMessage[] = rows.map((row) => ({
-          id: `db-${row.id}`,
+          id: String(row.id),
           role: row.role.toLowerCase() as "user" | "assistant",
           content: row.content,
-          creditsUsed: row.credits_used,
           timestamp: new Date(row.created_at),
+          creditsUsed: row.credits_used,
         }));
         setMessages(loaded);
       })
-      .catch((err) => console.error("Failed to load history:", err))
+      .catch(() => {
+        // Silently fail — empty chat is fine
+      })
       .finally(() => setIsLoadingHistory(false));
   }, [projectId]);
 
   const sendMessage = useCallback(
     async (content: string) => {
-      const userMessage: ChatMessage = {
+      if (!content.trim() || isLoading) return;
+
+      // Add user message immediately
+      const userMsg: ChatMessage = {
         id: `user-${Date.now()}`,
         role: "user",
         content,
         timestamp: new Date(),
       };
-
-      setMessages((prev) => [...prev, userMessage]);
-      setIsStreaming(true);
-
-      const assistantId = `assistant-${Date.now()}`;
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantId, role: "assistant", content: "", timestamp: new Date() },
-      ]);
+      setMessages((prev) => [...prev, userMsg]);
+      setIsLoading(true);
 
       try {
-        abortRef.current = new AbortController();
         const token = Cookies.get("access_token");
 
         const response = await fetch(`${API_URL}/api/chat`, {
@@ -94,173 +94,66 @@ export function useOdetaChat({ projectId, onCreditsUpdate, onError, onFileWrite,
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
-            project_id: Number(projectId),
+            project_id: projectId,
             messages: [{ role: "user", content }],
           }),
-          signal: abortRef.current.signal,
         });
 
         if (response.status === 402) {
           onError?.("You've run out of credits. Upgrade your plan to continue.");
-          setMessages((prev) => prev.filter((m) => m.id !== assistantId));
-          setIsStreaming(false);
+          setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
           return;
         }
 
         if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          throw new Error(err.error?.message || "Chat request failed");
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `Request failed (${response.status})`);
         }
 
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error("No response body");
+        const data = await response.json();
 
-        const decoder = new TextDecoder();
-        let buffer = "";
+        // Add AI response
+        const aiMsg: ChatMessage = {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: data.content || "",
+          timestamp: new Date(),
+          creditsUsed: data.credits_used,
+          files: data.files,
+        };
+        setMessages((prev) => [...prev, aiMsg]);
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        // Update credits
+        if (data.credits_remaining !== undefined) {
+          setCreditsRemaining(data.credits_remaining);
+          onCreditsUpdate?.(data.credits_used || 1, data.credits_remaining);
+        }
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          // Process SSE lines — handle event:/data: pairs
-          let pendingEventType: string | null = null;
-
-          for (let li = 0; li < lines.length; li++) {
-            const line = lines[li];
-
-            // Collect event type for next data line
-            if (line.startsWith("event:")) {
-              pendingEventType = line.slice(6).trim();
-              continue;
-            }
-
-            if (line.startsWith("data:")) {
-              const rawData = line.slice(5).trim();
-              const eventType = pendingEventType;
-              pendingEventType = null; // consume it
-
-              if (rawData === "[DONE]") {
-                setIsExecuting(false);
-                continue;
-              }
-
-              // If we have an event type, parse as structured event
-              if (eventType) {
-                try {
-                  const parsed = JSON.parse(rawData);
-                  if (eventType === "command_exec" || eventType === "command_start") {
-                    setIsExecuting(true);
-                    const total = parsed.total || 1;
-                    const index = parsed.index ?? 0;
-                    setRunningCommand({ label: parsed.label, command: parsed.command, output: [], index, total });
-                    // Set total from the event, keep completed count from previous state
-                    setBuildProgress((prev) => ({
-                      completed: prev?.completed ?? 0,
-                      total: Math.max(prev?.total ?? total, total),
-                    }));
-                    onCommandExec?.(parsed.command, parsed.label, index, total);
-                  } else if (eventType === "command_output" || eventType === "command_error_line") {
-                    setRunningCommand((prev) =>
-                      prev ? { ...prev, output: [...prev.output.slice(-50), parsed.line] } : null
-                    );
-                  } else if (eventType === "command_done") {
-                    setRunningCommand(null);
-                    setBuildProgress((prev) => prev ? { ...prev, completed: (prev.completed || 0) + 1 } : null);
-                  } else if (eventType === "command_failed") {
-                    setRunningCommand(null);
-                  } else if (eventType === "preview_ready") {
-                    setPreviewUrl(parsed.url);
-                  } else if (eventType === "build_complete") {
-                    setIsExecuting(false);
-                    setRunningCommand(null);
-                    setBuildProgress(null);
-                    if (parsed.preview_url) setPreviewUrl(parsed.preview_url);
-                  } else if (eventType === "file_write") {
-                    onFileWrite?.(parsed.path, parsed.content);
-                  } else if (eventType === "credits") {
-                    setCreditsRemaining(parsed.remaining);
-                    onCreditsUpdate?.(parsed.used, parsed.remaining);
-                  } else if (eventType === "message") {
-                    // AI text chunk
-                    setMessages((prev) =>
-                      prev.map((m) =>
-                        m.id === assistantId
-                          ? { ...m, content: m.content + (typeof parsed === "string" ? parsed : rawData) }
-                          : m
-                      )
-                    );
-                  }
-                } catch {
-                  // JSON parse failed for typed event — treat message events as text
-                  if (eventType === "message") {
-                    setMessages((prev) =>
-                      prev.map((m) =>
-                        m.id === assistantId
-                          ? { ...m, content: m.content + rawData }
-                          : m
-                      )
-                    );
-                  }
-                }
-                continue;
-              }
-
-              // No event type — handle as raw data (credits or text chunk)
-              try {
-                const parsed = JSON.parse(rawData);
-                if (parsed.used !== undefined && parsed.remaining !== undefined) {
-                  setCreditsRemaining(parsed.remaining);
-                  onCreditsUpdate?.(parsed.used, parsed.remaining);
-                  continue;
-                }
-              } catch {
-                // not JSON
-              }
-
-              // Plain text chunk — append to assistant message
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, content: m.content + rawData }
-                    : m
-                )
-              );
-            }
-          }
+        // Notify about generated files
+        if (data.files && data.files.length > 0) {
+          onFilesGenerated?.(data.files);
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
         const message = err instanceof Error ? err.message : "Chat failed";
         onError?.(message);
-        setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+        // Remove user message on error
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
       } finally {
-        setIsStreaming(false);
-        abortRef.current = null;
+        setIsLoading(false);
       }
     },
-    [projectId, onCreditsUpdate, onError]
+    [projectId, isLoading, onCreditsUpdate, onError, onFilesGenerated]
   );
-
-  const stopStreaming = useCallback(() => {
-    abortRef.current?.abort();
-    setIsStreaming(false);
-  }, []);
 
   return {
     messages,
-    setMessages,
-    sendMessage,
-    isStreaming,
+    isStreaming: isLoading, // keep same name for UI compat
     isLoadingHistory,
-    isExecuting,
-    runningCommand,
-    buildProgress,
-    previewUrl,
-    stopStreaming,
+    isExecuting: false,
+    runningCommand: null,
+    buildProgress: null,
     creditsRemaining,
+    sendMessage,
+    setMessages,
   };
 }

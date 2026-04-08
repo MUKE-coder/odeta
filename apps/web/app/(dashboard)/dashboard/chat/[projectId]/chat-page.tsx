@@ -15,7 +15,7 @@ import { EnvTab } from "@/components/chat/env-tab";
 import { ModelPicker } from "@/components/chat/model-picker";
 import { EditorPanel } from "@/components/editor/editor-panel";
 import { BuildPreview } from "@/components/editor/build-preview";
-import { useWebContainer } from "@/hooks/use-webcontainer";
+import { openInStackBlitz } from "@/components/editor/stackblitz-preview";
 import { ProjectActions } from "@/components/project/project-actions";
 import { PreviewToolbar, type DeviceId } from "@/components/editor/preview-toolbar";
 import { THEMES } from "@/lib/themes";
@@ -43,17 +43,11 @@ export default function ChatPage() {
   const [previewDevice, setPreviewDevice] = useState<DeviceId>("desktop");
   const [answeredQuestions, setAnsweredQuestions] = useState<Record<string, string>>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const wc = useWebContainer();
+  const [generatedFiles, setGeneratedFiles] = useState<string[]>([]);
   const { user } = useAuth();
   const isPaid = user?.plan === "starter" || user?.plan === "pro";
 
-  // Boot WebContainer when page loads
-  useEffect(() => {
-    if (wc.status === "idle") {
-      wc.boot().catch(() => {});
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // No WebContainer boot needed — files are saved on server, preview via StackBlitz
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -105,50 +99,32 @@ export default function ChatPage() {
     onError: (error: string) => {
       toast.error(error);
     },
-    onFileWrite: async (path: string, content: string) => {
-      // Write each file to WebContainer as it streams from the AI
-      if (wc.isReady) {
-        await wc.writeFile(path, content);
-      }
+    onFilesGenerated: (files: string[]) => {
+      setGeneratedFiles(files);
     },
   });
 
-  // Load files into WebContainer and start preview when build completes
-  const loadPreview = useCallback(async () => {
-    if (!wc.isReady) return;
+  // Open project in StackBlitz (new tab)
+  const handleOpenInStackBlitz = useCallback(async () => {
     try {
       const { data } = await apiClient.get(`/api/projects/${projectId}/files/all`);
       const files = data?.files;
       if (files && typeof files === "object" && Object.keys(files).length > 0) {
-        await wc.writeFiles(files);
-        await wc.installAndStart();
+        openInStackBlitz(files, project?.name || "odeta-project");
+        toast.success("Opening in StackBlitz...");
+      } else {
+        toast.error("No files generated yet");
       }
-    } catch (err) {
-      console.error("Failed to load preview:", err);
+    } catch {
+      toast.error("Failed to load project files");
     }
-  }, [wc, projectId]);
+  }, [projectId, project?.name]);
 
-  // Auto-load preview when build completes (files saved to disk)
-  useEffect(() => {
-    if (!isExecuting && !isStreaming && messages.length > 0) {
-      // Check if the last AI message had file blocks
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.role === "assistant" && lastMsg.content.includes("<file path=")) {
-        loadPreview();
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExecuting, isStreaming, messages.length]);
-
-  // Compute execution state for PlanCard
-  const activeCommandIndex = runningCommand?.index ?? null;
-  const completedCommandIndexes = buildProgress
-    ? Array.from({ length: buildProgress.completed }, (_, i) => i)
-    : [];
-  const currentCommandOutput = runningCommand?.output ?? [];
-  const buildProgressPercent = buildProgress
-    ? (buildProgress.completed / Math.max(buildProgress.total, 1)) * 100
-    : 0;
+  // No more command execution state — files are generated directly
+  const activeCommandIndex = null;
+  const completedCommandIndexes: number[] = [];
+  const currentCommandOutput: string[] = [];
+  const buildProgressPercent = 0;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -255,44 +231,8 @@ export default function ChatPage() {
 
             {showSkeleton && <MessageSkeleton />}
 
-            {/* Running command display */}
-            {runningCommand && (
-              <div className="px-4 py-2">
-                <CommandCard
-                  content={runningCommand.command}
-                  label={runningCommand.label}
-                  status="running"
-                  output={runningCommand.output}
-                />
-              </div>
-            )}
-
             <div ref={messagesEndRef} />
           </div>
-
-          {/* Build progress bar */}
-          {isExecuting && buildProgress && (
-            <div className="px-4 py-2 border-t bg-white">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 text-accent animate-spin" />
-                  <span className="text-xs font-medium text-foreground">Building your project...</span>
-                </div>
-                <span className="text-[10px] text-text-tertiary">
-                  {buildProgress.completed}/{buildProgress.total} steps
-                </span>
-              </div>
-              <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-accent rounded-full transition-all duration-500"
-                  style={{ width: `${(buildProgress.completed / Math.max(buildProgress.total, 1)) * 100}%` }}
-                />
-              </div>
-              {runningCommand && (
-                <p className="text-[10px] text-text-tertiary mt-1 truncate">{runningCommand.label}</p>
-              )}
-            </div>
-          )}
 
           {/* Credit indicator */}
           {!isExecuting && (
@@ -428,28 +368,50 @@ export default function ChatPage() {
             <>
               <PreviewToolbar activeDevice={previewDevice} onDeviceChange={setPreviewDevice} />
 
-              {wc.previewUrl ? (
-                <iframe
-                  src={wc.previewUrl}
-                  className="w-full flex-1 border-none"
-                  title="App preview"
-                  allow="cross-origin-isolated"
-                />
-              ) : isStreaming || isExecuting ? (
+              {isStreaming ? (
                 <BuildPreview
-                  currentStep={runningCommand?.label || (isStreaming ? "Generating files..." : undefined)}
-                  progressPercent={buildProgressPercent}
+                  currentStep="Generating files..."
+                  progressPercent={0}
                 />
+              ) : generatedFiles.length > 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center bg-gray-50 gap-4">
+                  <div className="text-center px-8">
+                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100">
+                      <svg className="h-7 w-7 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+                    </div>
+                    <p className="text-base font-semibold text-gray-900 mb-1">
+                      {generatedFiles.length} files generated
+                    </p>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Open in StackBlitz to see the live preview and edit code
+                    </p>
+                    <button
+                      onClick={handleOpenInStackBlitz}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 28 28" fill="currentColor"><path d="M12.747 16.273h-7.46L18.925 1.5l-3.671 10.227h7.46L9.075 26.5l3.671-10.227z"/></svg>
+                      Open in StackBlitz
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 justify-center px-8 max-w-md">
+                    {generatedFiles.slice(0, 8).map((f) => (
+                      <span key={f} className="text-[10px] font-mono bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                        {f.split("/").pop()}
+                      </span>
+                    ))}
+                    {generatedFiles.length > 8 && (
+                      <span className="text-[10px] text-gray-400">+{generatedFiles.length - 8} more</span>
+                    )}
+                  </div>
+                </div>
               ) : (
-                <div className="flex flex-1 items-center justify-center bg-gray-100">
+                <div className="flex flex-1 items-center justify-center bg-gray-50">
                   <div className="text-center px-8">
                     <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white border">
                       <Eye className="h-5 w-5 text-text-tertiary" />
                     </div>
                     <p className="text-sm text-text-secondary">
-                      {wc.status === "booting"
-                        ? "Starting preview engine..."
-                        : "Your app preview will appear here as it's built"}
+                      Your app preview will appear here as it&apos;s built
                     </p>
                   </div>
                 </div>

@@ -37,12 +37,7 @@ func Handler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		urlPath := c.Request.URL.Path
 
-		// COEP/COOP headers on non-API routes — required for WebContainers
-		// Same-origin (single binary) so this won't break API calls
-		if !strings.HasPrefix(urlPath, "/api/") {
-			c.Header("Cross-Origin-Embedder-Policy", "require-corp")
-			c.Header("Cross-Origin-Opener-Policy", "same-origin")
-		}
+
 
 		// Skip API routes
 		if strings.HasPrefix(urlPath, "/api/") {

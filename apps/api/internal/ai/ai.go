@@ -145,6 +145,17 @@ func (a *AI) Complete(ctx context.Context, req CompletionRequest) (*CompletionRe
 	}, nil
 }
 
+// CompleteWithModel generates a non-streaming response using a specific model.
+func (a *AI) CompleteWithModel(ctx context.Context, model string, req CompletionRequest) (*CompletionResponse, error) {
+	if model == "" {
+		model = a.model
+	}
+	originalModel := a.model
+	a.model = model
+	defer func() { a.model = originalModel }()
+	return a.Complete(ctx, req)
+}
+
 // StreamWithModel generates a streaming response using a specific model.
 func (a *AI) StreamWithModel(ctx context.Context, model string, req CompletionRequest, handler StreamHandler) error {
 	if model == "" {
