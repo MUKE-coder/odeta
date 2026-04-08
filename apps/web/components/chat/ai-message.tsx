@@ -94,13 +94,28 @@ export function AIMessage({
                 />
               );
             case "file":
+              // Don't show individual file blocks in chat — show a compact summary
+              // Count consecutive file blocks
+              if (i > 0 && blocks[i - 1]?.type === "file") return null; // skip if not first file
+              const fileBlocks = blocks.filter((b): b is Extract<typeof b, { type: "file" }> => b.type === "file");
               return (
-                <CodeBlock
-                  key={i}
-                  language={block.path.endsWith(".tsx") || block.path.endsWith(".ts") ? "typescript" : block.path.endsWith(".css") ? "css" : "text"}
-                  content={block.content}
-                  filename={block.path}
-                />
+                <div key={i} className="rounded-xl border border-green-200 bg-green-50 p-3.5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+                    <span className="text-sm font-semibold text-green-800">{fileBlocks.length} files generated</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {fileBlocks.slice(0, 12).map((f, fi) => (
+                      <span key={fi} className="text-[10px] font-mono bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                        {f.path.split("/").pop()}
+                      </span>
+                    ))}
+                    {fileBlocks.length > 12 && (
+                      <span className="text-[10px] text-green-600">+{fileBlocks.length - 12} more</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-green-600 mt-2">Click &quot;Open in StackBlitz&quot; in the Preview panel to see your app live →</p>
+                </div>
               );
             case "plan":
               return (

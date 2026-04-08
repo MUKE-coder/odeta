@@ -61,6 +61,21 @@ export default function ChatPage() {
   });
   const project = projectData?.data;
 
+  // Load generated files if project is already built
+  useEffect(() => {
+    if (project?.status === "BUILT" && generatedFiles.length === 0) {
+      apiClient.get(`/api/projects/${projectId}/files/all`)
+        .then(({ data }) => {
+          const files = data?.files;
+          if (files && typeof files === "object") {
+            setGeneratedFiles(Object.keys(files));
+          }
+        })
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.status]);
+
   // Check if design phase is complete
   const metadata = project?.metadata ? (typeof project.metadata === "string" ? JSON.parse(project.metadata) : project.metadata) : {};
   const [designComplete, setDesignComplete] = useState(false);
