@@ -159,14 +159,13 @@ export function useOdetaChat({
               }
 
               if (parsed.done) {
-                // Final message — update with complete content and files
-                const finalContent = (parsed.content as string) || streamedContent;
+                // Final line — content already built from chunks
                 finalFiles = (parsed.files as string[]) || [];
 
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantId
-                      ? { ...m, content: finalContent, files: finalFiles, creditsUsed: parsed.credits_used }
+                      ? { ...m, content: streamedContent, files: finalFiles, creditsUsed: parsed.credits_used }
                       : m
                   )
                 );

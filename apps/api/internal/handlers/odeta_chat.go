@@ -148,9 +148,8 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 	c.Header("X-Accel-Buffering", "no")
 	c.Status(http.StatusOK)
 
-	// Stream AI response — send each chunk as a partial NDJSON line
+	// Stream AI response — send EVERY chunk to keep connection alive and show progress
 	var fullResponse strings.Builder
-	chunkCount := 0
 
 	streamErr := h.AI.StreamWithModel(c.Request.Context(), modelID, ai.CompletionRequest{
 		Messages:    messages,
@@ -158,15 +157,12 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		Temperature: req.Temperature,
 	}, func(chunk string) error {
 		fullResponse.WriteString(chunk)
-		chunkCount++
 
-		// Send chunk as NDJSON line every few chunks (keeps connection alive)
-		if chunkCount%3 == 0 {
-			line, _ := json.Marshal(map[string]string{"chunk": chunk})
-			c.Writer.Write(line)
-			c.Writer.WriteString("\n")
-			c.Writer.Flush()
-		}
+		// Send every chunk as NDJSON line — keeps connection alive + enables streaming UI
+		line, _ := json.Marshal(map[string]string{"chunk": chunk})
+		c.Writer.Write(line)
+		c.Writer.WriteString("\n")
+		c.Writer.Flush()
 		return nil
 	})
 
@@ -224,14 +220,13 @@ func (h *OdetaChatHandler) Chat(c *gin.Context) {
 		}
 	}
 
-	// Send final complete response as the last NDJSON line
+	// Send final line — lightweight, content already streamed via chunks
 	finalLine, _ := json.Marshal(map[string]interface{}{
 		"done":              true,
-		"content":           aiText,
 		"files":             savedFiles,
+		"files_count":       len(savedFiles),
 		"credits_used":      creditCost,
 		"credits_remaining": newBalance,
-		"model":             modelID,
 	})
 	c.Writer.Write(finalLine)
 	c.Writer.WriteString("\n")
