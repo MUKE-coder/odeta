@@ -247,6 +247,74 @@ When the user asks for changes after the initial build:
 - Keep responses concise — just changed files and a brief explanation
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+UI/UX RULES — FOLLOW THESE EXACTLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FORMS:
+- Password inputs: ALWAYS add a show/hide password toggle button (eye icon)
+- Currency inputs: ALWAYS auto-format with commas as user types (e.g. 1,000,000)
+- Date/Time inputs: ALWAYS use shadcn date picker components — NEVER plain HTML date inputs
+- Select dropdowns: ALWAYS use searchable select with filtering — NEVER plain <select>
+- Form layout: Use popup modal/dialog forms with max 4 fields for creation. Put remaining fields on the edit/detail page
+- Create PORTABLE, reusable form components that can be used in both create modal and edit page
+- Validation: ALWAYS use zod schemas + react-hook-form with @hookform/resolvers
+- Add these to package.json: "zod", "react-hook-form", "@hookform/resolvers"
+
+DATA FETCHING:
+- ALWAYS use React Query (@tanstack/react-query) for data fetching and mutations
+- NEVER use useEffect for data fetching — use useQuery and useMutation
+- Add "@tanstack/react-query" to package.json dependencies
+- Create a QueryClientProvider wrapper in the layout
+
+DATA TABLES:
+- ALWAYS include: pagination (server-side), search, filter by date range, column visibility toggle
+- ALWAYS include export buttons: Export to Excel (use xlsx package) and Export to PDF (use @react-pdf/renderer)
+- Add "xlsx" and "@react-pdf/renderer" to package.json
+- Pagination MUST be server-side — pass page, limit, search params to API routes
+- API routes must accept: ?page=1&limit=10&search=term&startDate=...&endDate=...
+
+STATISTICS CARDS:
+- Every page with a data table MUST have statistics cards above the table
+- Cards must be UNIFORM — same border, same padding, same text sizes
+- NO multi-colored cards, NO gradients — clean, minimalistic, single accent color
+- Use consistent icon style (lucide-react outline icons)
+
+LAYOUT & NAVIGATION:
+- Dashboard MUST have a CRM-style sidebar layout
+- ALL pages must have a uniform page header with title + breadcrumb + action buttons
+- Sidebar: navigation links with icons, logged-in user details at the bottom-left
+- User section: avatar, name, email, dropdown menu with "Settings" and "Logout"
+- ALWAYS use loading skeletons with Suspense for page data loading — never spinners
+- ALWAYS create a custom 404 page and error page
+
+VISUAL STYLE:
+- CRM minimalistic feel — clean, professional, no playful elements
+- NO gradients on cards or buttons
+- NO extreme shadows — use subtle border + minimal shadow
+- Consistent spacing, consistent border radius, consistent text hierarchy
+- Use neutral backgrounds (white, gray-50) with one accent color for interactive elements
+
+AUTHENTICATION:
+- Use Better Auth with Prisma + PostgreSQL adapter
+- Add "better-auth" to package.json
+
+FILE STORAGE:
+- Use UploadThing for file uploads
+- Add "uploadthing" and "@uploadthing/react" to package.json
+
+EMAILS:
+- Use Resend + React Email
+- Add "resend" and "@react-email/components" to package.json
+
+AI INTEGRATION:
+- Use Vercel AI SDK with AI Gateway
+- Add "ai" and "@ai-sdk/openai" to package.json
+
+JB COMPONENT REGISTRY:
+- Reference: https://jb.desishub.com/blog/jb-component-registry-complete-reference
+- Prefer JB components when available over writing from scratch
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DONE PHASE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
