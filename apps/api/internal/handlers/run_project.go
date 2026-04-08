@@ -81,8 +81,19 @@ func (h *RunProjectHandler) Run(c *gin.Context) {
 
 	writeLine("status", "Copying project files...")
 
-	// Run the project — copies files, installs deps, starts dev server
-	err = sb.RunProject(projectDir, func(line string, isErr bool) {
+	// Load env vars from request body (if provided)
+	var reqBody struct {
+		EnvVars map[string]string `json:"env_vars"`
+	}
+	// Try to parse but don't fail if empty
+	c.ShouldBindJSON(&reqBody)
+	envVars := reqBody.EnvVars
+	if envVars == nil {
+		envVars = map[string]string{}
+	}
+
+	// Run the project — copies files, sets env, installs deps, runs prisma, starts dev server
+	err = sb.RunProject(projectDir, envVars, func(line string, isErr bool) {
 		eventType := "log"
 		if isErr {
 			eventType = "error"

@@ -281,9 +281,8 @@ func (sb *DockerSandbox) CopyProjectFiles(projectDir string) error {
 }
 
 // RunProject copies files into the container, installs deps, and starts the dev server.
-// Returns immediately after starting — the dev server runs in the background.
-// Use onLine callback to stream logs back to the client.
-func (sb *DockerSandbox) RunProject(projectDir string, onLine DockerLineCallback) error {
+// envVars is a map of environment variables to set (e.g. DATABASE_URL).
+func (sb *DockerSandbox) RunProject(projectDir string, envVars map[string]string, onLine DockerLineCallback) error {
 	// Step 1: Copy files into container
 	if err := sb.CopyProjectFiles(projectDir); err != nil {
 		return fmt.Errorf("copy files: %w", err)
@@ -291,6 +290,20 @@ func (sb *DockerSandbox) RunProject(projectDir string, onLine DockerLineCallback
 
 	if onLine != nil {
 		onLine("Files copied into container", false)
+	}
+
+	// Step 1.5: Write .env file with user's environment variables
+	if len(envVars) > 0 {
+		var envContent string
+		for k, v := range envVars {
+			envContent += fmt.Sprintf("%s=%s\n", k, v)
+		}
+		// Write .env inside the container
+		writeCmd := fmt.Sprintf("cat > /home/user/.env << 'ENVEOF'\n%sENVEOF", envContent)
+		sb.RunCommand(writeCmd, "/home/user", nil)
+		if onLine != nil {
+			onLine(fmt.Sprintf("Environment variables set (%d vars) ✓", len(envVars)), false)
+		}
 	}
 
 	// Step 2: Install dependencies
@@ -307,10 +320,41 @@ func (sb *DockerSandbox) RunProject(projectDir string, onLine DockerLineCallback
 
 	if onLine != nil {
 		onLine("Dependencies installed ✓", false)
+	}
+
+	// Step 3: Run Prisma if schema exists
+	// Check if prisma/schema.prisma exists in the container
+	checkExit, _ := sb.RunCommand("test -f /home/user/prisma/schema.prisma && echo 'yes' || echo 'no'", "/home/user", nil)
+	if checkExit == 0 {
+		if onLine != nil {
+			onLine("$ pnpm db:generate", false)
+		}
+		genExit, genErr := sb.RunCommand("pnpm db:generate", "/home/user", onLine)
+		if genErr != nil || genExit != 0 {
+			if onLine != nil {
+				onLine("⚠ Prisma generate failed — database features won't work until DATABASE_URL is set", false)
+			}
+			// Don't fail the whole run — app can still start without DB
+		} else {
+			if onLine != nil {
+				onLine("Prisma client generated ✓", false)
+			}
+
+			// Try db:push if DATABASE_URL is set
+			pushExit, _ := sb.RunCommand("pnpm db:push 2>&1 || true", "/home/user", onLine)
+			if pushExit == 0 {
+				if onLine != nil {
+					onLine("Database schema synced ✓", false)
+				}
+			}
+		}
+	}
+
+	if onLine != nil {
 		onLine("$ pnpm dev", false)
 	}
 
-	// Step 3: Start dev server in background (don't wait for it)
+	// Step 4: Start dev server in background (don't wait for it)
 	go func() {
 		sb.RunCommand("pnpm dev --port 3000", "/home/user", func(line string, isErr bool) {
 			if onLine != nil {

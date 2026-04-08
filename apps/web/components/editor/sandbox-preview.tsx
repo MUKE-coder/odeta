@@ -9,9 +9,10 @@ import Cookies from "js-cookie";
 interface SandboxPreviewProps {
   files: Record<string, string>;
   projectId?: string;
+  envVars?: Record<string, string>;
 }
 
-export function SandboxPreview({ files, projectId }: SandboxPreviewProps) {
+export function SandboxPreview({ files, projectId, envVars = {} }: SandboxPreviewProps) {
   const [compiledHtml, setCompiledHtml] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
@@ -34,7 +35,11 @@ export function SandboxPreview({ files, projectId }: SandboxPreviewProps) {
       const token = Cookies.get("access_token");
       const res = await fetch(`/api/projects/${projectId}/run`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ env_vars: envVars }),
       });
 
       if (!res.ok) {
