@@ -378,7 +378,7 @@ export default function ChatPage() {
               <PreviewToolbar activeDevice={previewDevice} onDeviceChange={setPreviewDevice} />
 
               <div className="flex-1 min-h-0">
-                <SandboxPreview files={fileContents} />
+                <SandboxPreview files={fileContents} projectId={projectId} />
               </div>
             </>
           )}

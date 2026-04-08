@@ -267,6 +267,78 @@ func (sb *DockerSandbox) ListFiles() (map[string]string, error) {
 	return files, nil
 }
 
+// CopyProjectFiles copies project files from host disk into the container.
+func (sb *DockerSandbox) CopyProjectFiles(projectDir string) error {
+	// Use docker cp to copy all project files into the container's workdir
+	// docker cp /tmp/odeta-projects/123/. container:/home/user/
+	cmd := exec.Command("docker", "cp", projectDir+"/.", sb.ContainerID+":/home/user/")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker cp failed: %s — output: %s", err, string(out))
+	}
+	log.Printf("[Docker] Copied project files from %s into container %s", projectDir, sb.ContainerID[:12])
+	return nil
+}
+
+// RunProject copies files into the container, installs deps, and starts the dev server.
+// Returns immediately after starting — the dev server runs in the background.
+// Use onLine callback to stream logs back to the client.
+func (sb *DockerSandbox) RunProject(projectDir string, onLine DockerLineCallback) error {
+	// Step 1: Copy files into container
+	if err := sb.CopyProjectFiles(projectDir); err != nil {
+		return fmt.Errorf("copy files: %w", err)
+	}
+
+	if onLine != nil {
+		onLine("Files copied into container", false)
+	}
+
+	// Step 2: Install dependencies
+	if onLine != nil {
+		onLine("$ pnpm install", false)
+	}
+	exitCode, err := sb.RunCommand("pnpm install --no-frozen-lockfile", "/home/user", onLine)
+	if err != nil {
+		return fmt.Errorf("pnpm install failed: %w", err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("pnpm install exited with code %d", exitCode)
+	}
+
+	if onLine != nil {
+		onLine("Dependencies installed ✓", false)
+		onLine("$ pnpm dev", false)
+	}
+
+	// Step 3: Start dev server in background (don't wait for it)
+	go func() {
+		sb.RunCommand("pnpm dev --port 3000", "/home/user", func(line string, isErr bool) {
+			if onLine != nil {
+				onLine(line, isErr)
+			}
+		})
+	}()
+
+	return nil
+}
+
+// GetStatus checks if the dev server is responding.
+func (sb *DockerSandbox) GetStatus() string {
+	out, _ := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", sb.ContainerID).Output()
+	if strings.TrimSpace(string(out)) != "true" {
+		return "stopped"
+	}
+	// Check if port 3000 is listening inside the container
+	checkCmd := exec.Command("docker", "exec", sb.ContainerID, "sh", "-c",
+		"curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 2>/dev/null || echo 'not_ready'")
+	checkOut, _ := checkCmd.Output()
+	result := strings.TrimSpace(string(checkOut))
+	if result == "200" || result == "304" {
+		return "running"
+	}
+	return "starting"
+}
+
 func dockerNormalizeCommand(cmd string) string {
 	cmd = strings.TrimSpace(cmd)
 	if strings.HasPrefix(cmd, "pnpm create next-app") && !strings.Contains(cmd, "--yes") {

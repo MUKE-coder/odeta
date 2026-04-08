@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os/exec"
 	"time"
 
 	"github.com/MUKE-coder/gin-docs/gindocs"
@@ -28,7 +29,7 @@ import (
 	"odeta/apps/api/internal/services/grit"
 	"odeta/apps/api/internal/services/devserver"
 	orbitasvc "odeta/apps/api/internal/services/orbita"
-	_ "odeta/apps/api/internal/services/sandbox" // keep package for now
+	"odeta/apps/api/internal/services/sandbox"
 	"odeta/apps/api/internal/web"
 	stripesvc "odeta/apps/api/internal/services/stripe"
 	"odeta/apps/api/internal/handlers/webhooks"
@@ -294,6 +295,20 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 
 	// Odeta handlers
 
+	// Docker sandbox manager for running projects
+	var dockerManager *sandbox.DockerManager
+	if _, dockerErr := exec.LookPath("docker"); dockerErr == nil {
+		dockerManager = sandbox.NewDockerManager("odeta-sandbox")
+		log.Println("Docker sandbox execution configured")
+	} else {
+		log.Println("Docker not available — Run Project feature disabled")
+	}
+
+	runProjectHandler := &handlers.RunProjectHandler{
+		DB:     db,
+		Docker: dockerManager,
+	}
+
 	odetaChatHandler := &handlers.OdetaChatHandler{
 		DB:      db,
 		AI:      svc.AI,
@@ -459,6 +474,11 @@ func Setup(db *gorm.DB, cfg *config.Config, svc *Services) *gin.Engine {
 		protected.PUT("/projects/:id/files/content", fileHandler.SaveFileContent)
 		protected.DELETE("/projects/:id/files", fileHandler.DeleteFile)
 		protected.GET("/projects/:id/download", fileHandler.DownloadProject)
+
+		// Run project in Docker sandbox
+		protected.POST("/projects/:id/run", runProjectHandler.Run)
+		protected.GET("/projects/:id/run/status", runProjectHandler.Status)
+		protected.POST("/projects/:id/run/stop", runProjectHandler.Stop)
 
 		// GitHub integration
 		protected.POST("/projects/:id/github/create", githubHandler.CreateAndPush)
